@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Drum Machine + Synth with EQ & Filters</title>
+  <style>
+    body {
+      background: #121212;
+      color: #eee;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 20px;
+      user-select: none;
+    }
+    h2 { margin-bottom: 0.2em; }
+    .controls {
+      margin-bottom: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      font-size: 0.9rem;
+      max-width: 200px;
+    }
+    input[type=range] {
+      width: 100%;
+      background: #333;
+      height: 6px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      appearance: none;
+      width: 16px; height: 16px; background: #0af;
+      cursor: pointer; border-radius: 50%; border: none; margin-top: -5px;
+    }
+    #sequencer, #synthseq {
+      display: grid;
+      grid-template-columns: repeat(16, 28px);
+      gap: 6px 8px;
+      margin-bottom: 20px;
+      user-select: none;
+    }
+    .drum-label, #melody-label {
+      grid-column: span 16;
+      margin-top: 12px;
+      margin-bottom: 3px;
+      font-weight: 600;
+      color: #0af;
+    }
+    .step, .melstep {
+      width: 28px; height: 28px;
+      background: #333;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      box-shadow: inset 0 0 6px #000;
+      border: none;
+      margin: 0; padding: 0;
+      font-size: .93em;
+      color: #eee;
+      outline: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .step.active { background: #1fd6f7; box-shadow: 0 0 8px #1fd6f7; }
+    .melstep.active { background: #1fd6f7; color: #121212; box-shadow: 0 0 8px #1fd6f7; }
+    .step.playing, .melstep.playing { background: #ffc200; color: #212; }
+    button {
+      background: #0af;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background-color 0.3s;
+    }
+    button:hover { background: #08a; }
+    input[type=text] {
+      padding: 5px 8px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #222;
+      color: #eee;
+      font-size: 0.9rem;
+    }
+    select {
+      background: #222;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 4px 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    #pattern-manager {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    footer {
+      margin-top: 40px;
+      font-size: 0.8rem;
+      color: #444;
+      text-align: center;
+      user-select: none;
+    }
+    @media (max-width: 600px) {
+      #sequencer, #synthseq { grid-template-columns: repeat(8, 28px);}
+    }
+  </style>
+</head>
+<body>
+  <h2>Web Drum Machine + Synthesizer</h2>
+  <div class="controls">
+    <div class="control-group">
+      <label for="lpfCutoff">LPF Cutoff (Hz)</label>
+      <input type="range" min="100" max="4000" value="800" id="lpfCutoff" />
+      <span id="lpfVal">800</span>
+    </div>
+    <div class="control-group">
+      <label for="hpfCutoff">HPF Cutoff (Hz)</label>
+      <input type="range" min="50" max="3500" value="150" id="hpfCutoff" />
+      <span id="hpfVal">150</span>
+    </div>
+    <div class="control-group">
+      <label for="eqFreq">EQ Frequency (Hz)</label>
+      <input type="range" min="200" max="2000" value="600" id="eqFreq" />
+      <span id="eqFreqVal">600</span>
+    </div>
+    <div class="control-group">
+      <label for="eqGain">EQ Gain (dB)</label>
+      <input type="range" min="-12" max="12" value="0" id="eqGain" />
+      <span id="eqGainVal">0</span>
+    </div>
+  </div>
+  <div>
+    <button id="playBtn">▶ Play</button>
+    <button id="stopBtn" disabled>■ Stop</button>
+  </div>
+  <div id="sequencer" aria-label="Drum machine sequencer grid" role="grid" tabindex="0"></div>
+  <div id="melody-label" class="drum-label" style="margin-top:12px; color:#96f;">Synth Melody</div>
+  <div id="synthseq" aria-label="Synth melody sequencer grid" tabindex="0"></div>
+  <div id="pattern-manager">
+    <input type="text" id="snippetName" placeholder="Pattern Name" aria-label="Pattern Name" />
+    <input type="text" id="snippetCat" placeholder="Category" aria-label="Category" />
+    <button id="saveBtn">Save Pattern</button>
+    <select id="catFilter" aria-label="Select Category"></select>
+    <select id="savedSnippets" aria-label="Select Pattern"></select>
+    <button id="loadBtn">Load Pattern</button>
+  </div>
+  <footer>&copy; 2025 Web Audio Drum & Synth App</footer>
+<script>
+(() => {
+  const drumNames = ["Kick", "Snare", "HiHat", "Clap", "Tom", "Rimshot"];
+  const stepsCount = 16;
+  let pattern = drumNames.map(() => new Array(stepsCount).fill(false));
+  // --- Synth melody: stepsCount steps, value=either null for rest or integer 0..scale.length-1
+  const scale = [60, 62, 64, 65, 67, 69, 71, 72];   // C4 to C5
+  const noteNames = ['C','D','E','F','G','A','B','C']; // UI
+  let synthSeqPattern = Array(stepsCount).fill(null);
+
+  // UI references
+  const seqDiv = document.getElementById('sequencer');
+  const synthSeqDiv = document.getElementById('synthseq');
+  const playBtn = document.getElementById('playBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const lpfSlider = document.getElementById('lpfCutoff');
+  const hpfSlider = document.getElementById('hpfCutoff');
+  const eqFreqSlider = document.getElementById('eqFreq');
+  const eqGainSlider = document.getElementById('eqGain');
+  const lpfVal = document.getElementById('lpfVal');
+  const hpfVal = document.getElementById('hpfVal');
+  const eqFreqVal = document.getElementById('eqFreqVal');
+  const eqGainVal = document.getElementById('eqGainVal');
+  const snippetNameInput = document.getElementById('snippetName');
+  const snippetCatInput = document.getElementById('snippetCat');
+  const saveBtn = document.getElementById('saveBtn');
+  const catFilter = document.getElementById('catFilter');
+  const savedSnippets = document.getElementById('savedSnippets');
+  const loadBtn = document.getElementById('loadBtn');
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // --- DRUM GRID ---
+  function buildSequencerGrid() {
+    seqDiv.innerHTML = '';
+    drumNames.forEach((name, dIdx) => {
+      const label = document.createElement('div');
+      label.className = "drum-label";
+      label.textContent = name;
+      label.style.gridColumn = `span ${stepsCount}`;
+      seqDiv.appendChild(label);
+      for (let s = 0; s < stepsCount; s++) {
+        const stepEl = document.createElement('button');
+        stepEl.className = 'step';
+        stepEl.setAttribute('aria-pressed', 'false');
+        stepEl.setAttribute('data-drum', dIdx);
+        stepEl.setAttribute('data-step', s);
+        stepEl.setAttribute('title', `${name} step ${s + 1}`);
+        if (pattern[dIdx][s]) stepEl.classList.add('active');
+        stepEl.onclick = () => {
+          pattern[dIdx][s] = !pattern[dIdx][s];
+          stepEl.classList.toggle('active');
+          stepEl.setAttribute('aria-pressed', pattern[dIdx][s]);
+        };
+        seqDiv.appendChild(stepEl);
+      }
+    });
+  }
+  function highlightStep(stepIdx) {
+    const stepBtns = seqDiv.querySelectorAll('.step');
+    // 6 rows x stepsCount columns; step in each row index goes from 0,stepsCount,... (column-major)
+    for (let i = 0; i < drumNames.length; i++)
+      for (let j = 0; j < stepsCount; j++) {
+        const idx = i * stepsCount + j;
+        stepBtns[idx]?.classList.toggle('playing', j === stepIdx);
+      }
+  }
+
+  // --- SYNTH GRID ---
+  function buildSynthGrid() {
+    synthSeqDiv.innerHTML = '';
+    for (let s = 0; s < stepsCount; s++) {
+      const cell = document.createElement('button');
+      cell.className = 'melstep';
+      if (synthSeqPattern[s] !== null) cell.classList.add('active');
+      cell.innerHTML = synthSeqPattern[s] === null ? '' : noteNames[synthSeqPattern[s]];
+      cell.title = 'Click to set melody (C D E F G A B C); more clicks=advance/rest';
+      cell.onclick = () => {
+        // cycle: null -> 0 -> 1 -> ... -> max -> null
+        if (synthSeqPattern[s] === null)
+          synthSeqPattern[s] = 0;
+        else if (synthSeqPattern[s] < scale.length-1)
+          synthSeqPattern[s]++;
+        else
+          synthSeqPattern[s] = null;
+        cell.innerHTML = synthSeqPattern[s] === null ? '' : noteNames[synthSeqPattern[s]];
+        cell.classList.toggle('active', synthSeqPattern[s] !== null);
+      }
+      synthSeqDiv.appendChild(cell);
+    }
+  }
+  function highlightSynthStep(stepIdx) {
+    const cells = synthSeqDiv.querySelectorAll('.melstep');
+    for (let j = 0; j < stepsCount; j++)
+      cells[j]?.classList.toggle('playing', j === stepIdx);
+  }
+
+  // ---- Filter/EQ Node Chain: shared by all sounds ----
+  const hpfNode = ctx.createBiquadFilter(); hpfNode.type = 'highpass';
+  const eqNode = ctx.createBiquadFilter(); eqNode.type = 'peaking';
+  const lpfNode = ctx.createBiquadFilter(); lpfNode.type = 'lowpass';
+  hpfNode.connect(eqNode); eqNode.connect(lpfNode); lpfNode.connect(ctx.destination);
+  const chainOutputNode = hpfNode;
+
+  function setFiltersFromUI() {
+    hpfNode.frequency.value = +hpfSlider.value;
+    lpfNode.frequency.value = +lpfSlider.value;
+    eqNode.frequency.value = +eqFreqSlider.value;
+    eqNode.gain.value = +eqGainSlider.value;
+  }
+  ['lpfCutoff','hpfCutoff','eqFreq','eqGain'].forEach(id=>{
+    document.getElementById(id).oninput = e=>{
+      setFiltersFromUI();
+      document.getElementById(id.replace('Cutoff','Val').replace('FreqVal','FreqVal').replace('GainVal','GainVal')).textContent = e.target.value;
+    };
+  });
+  setFiltersFromUI();
+
+  // --- DRUM SOUNDS ---
+  function playStep(step) {
+    // Drums
+    for (let d = 0; d < drumNames.length; d++) {
+      if (!pattern[d][step]) continue;
+      switch (d) {
+        case 0: { // Kick
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(120, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(42, ctx.currentTime + 0.1);
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(1, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+          osc.connect(gain).connect(chainOutputNode);
+          osc.start(); osc.stop(ctx.currentTime + 0.15);
+        } break;
+        case 1: playNoise(0.15, 'lowpass', 1200); break; // Snare
+        case 2: playNoise(0.06, 'highpass', 7000); break; // HiHat
+        case 3: for (let i = 0; i < 3; i++) setTimeout(() => playNoise(0.04, 'bandpass', 1500), i * 30); break; // Clap
+        case 4: { // Tom
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(220, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.18);
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0.6, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+          osc.connect(gain).connect(chainOutputNode);
+          osc.start(); osc.stop(ctx.currentTime + 0.2);
+        } break;
+        case 5: playNoise(0.05, 'highpass', 4000); break; // Rimshot
+      }
+    }
+    // Melody synth - one note per step, monophonic, pass through same filter chain
+    if (synthSeqPattern[step] !== null) {
+      playSynthNote(scale[synthSeqPattern[step]]);
+    }
+  }
+  function playNoise(duration, filterType, filterFreq) {
+    const bufferSize = ctx.sampleRate * duration;
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = filterType; filter.frequency.setValueAtTime(filterFreq, ctx.currentTime);
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+    noise.connect(filter).connect(gainNode).connect(chainOutputNode);
+    noise.start(); noise.stop(ctx.currentTime + duration);
+  }
+  function playSynthNote(midi) {
+    let freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.21;
+    gain.gain.setTargetAtTime(0.10, ctx.currentTime, 0.12);
+    osc.connect(gain).connect(chainOutputNode);
+    osc.start(); osc.stop(ctx.currentTime + 0.25);
+  }
+
+  // --- SEQUENCER LOOP ---
+  let isPlaying = false, currentStep = 0, timerId = null, tempo = 125;
+  function sequencerLoop() {
+    if (!isPlaying) return;
+    playStep(currentStep);
+    highlightStep(currentStep);
+    highlightSynthStep(currentStep);
+    currentStep = (currentStep + 1) % stepsCount;
+    timerId = setTimeout(sequencerLoop, (60 / tempo) / 4 * 1000);
+  }
+  playBtn.onclick = () => {
+    if (ctx.state === 'suspended') ctx.resume();
+    isPlaying = true;
+    playBtn.disabled = true;
+    stopBtn.disabled = false;
+    currentStep = 0;
+    sequencerLoop();
+  };
+  stopBtn.onclick = () => {
+    isPlaying = false; playBtn.disabled = false; stopBtn.disabled = true;
+    clearTimeout(timerId);
+    highlightStep(-1);
+    highlightSynthStep(-1);
+  };
+
+  // --- Pattern save/load + filter settings
+  function loadSnippetsFromLS() {
+    return JSON.parse(localStorage.getItem('drumSynthPatternsMel') || '{}');
+  }
+  function saveSnippetsToLS(obj) {
+    localStorage.setItem('drumSynthPatternsMel', JSON.stringify(obj));
+  }
+  function updateCategoryList() {
+    const data = loadSnippetsFromLS();
+    const categories = Object.keys(data).sort();
+    catFilter.innerHTML = '';
+    categories.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      catFilter.appendChild(opt);
+    });
+    if (categories.length) {
+      catFilter.value = categories[0];
+      updatePatternList();
+    } else {
+      savedSnippets.innerHTML = '';
+    }
+  }
+  function updatePatternList() {
+    const data = loadSnippetsFromLS();
+    const cat = catFilter.value;
+    savedSnippets.innerHTML = '';
+    if (data[cat]) {
+      data[cat].forEach((patternObj, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = patternObj.name || `Pattern ${idx + 1}`;
+        savedSnippets.appendChild(opt);
+      });
+    }
+  }
+  saveBtn.onclick = () => {
+    const name = snippetNameInput.value.trim() || `Unnamed ${Date.now()}`;
+    const cat = snippetCatInput.value.trim();
+    if (!cat) {
+      alert('Please enter a Category to save pattern.'); snippetCatInput.focus(); return;
+    }
+    let data = loadSnippetsFromLS();
+    if (!data[cat]) data[cat] = [];
+    data[cat].push({
+      name,
+      pattern: pattern.map(arr => arr.slice()),
+      melody: synthSeqPattern.slice(),
+      settings: {
+        lpfCutoff: lpfSlider.value,
+        hpfCutoff: hpfSlider.value,
+        eqFreq: eqFreqSlider.value,
+        eqGain: eqGainSlider.value
+      }
+    });
+    saveSnippetsToLS(data);
+    updateCategoryList();
+    snippetNameInput.value = '';
+    snippetCatInput.value = '';
+    alert(`Pattern "${name}" saved in category "${cat}".`);
+  };
+  loadBtn.onclick = () => {
+    const cat = catFilter.value;
+    const idx = savedSnippets.value;
+    if (!cat || !idx) return;
+    const data = loadSnippetsFromLS();
+    if (!data[cat] || !data[cat][idx]) return;
+    const loaded = data[cat][idx];
+    pattern = loaded.pattern.map(arr => arr.slice());
+    synthSeqPattern = loaded.melody ? loaded.melody.slice() : Array(stepsCount).fill(null);
+    buildSequencerGrid(); buildSynthGrid();
+    lpfSlider.value = loaded.settings?.lpfCutoff ?? lpfSlider.value;
+    hpfSlider.value = loaded.settings?.hpfCutoff ?? hpfSlider.value;
+    eqFreqSlider.value = loaded.settings?.eqFreq ?? eqFreqSlider.value;
+    eqGainSlider.value = loaded.settings?.eqGain ?? eqGainSlider.value;
+    lpfVal.textContent = lpfSlider.value; hpfVal.textContent = hpfSlider.value;
+    eqFreqVal.textContent = eqFreqSlider.value; eqGainVal.textContent = eqGainSlider.value;
+    setFiltersFromUI();
+  }
+  catFilter.onchange = updatePatternList;
+
+  // --- Initial build
+  buildSequencerGrid(); buildSynthGrid(); setFiltersFromUI(); updateCategoryList();
+})();
+</script>
+</body>
+</html>
