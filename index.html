@@ -51,6 +51,7 @@
       -webkit-appearance: none; /* For Chrome/Safari */
       appearance: none;
       margin-top: 8px;
+      touch-action: pan-x; /* Prevent vertical scroll when interacting with sliders on touch devices */
     }
     input[type=range]::-webkit-slider-thumb {
       -webkit-appearance: none;
@@ -241,7 +242,6 @@
 </head>
 <body>
   <h2>Web Drum Machine + Synthesizer</h2>
-  <div id="user-id-display" style="font-family: monospace; color: #888; margin-bottom: 1em;">Connecting...</div>
 
   <div class="main-controls">
     <div class="control-group">
@@ -352,8 +352,10 @@
   <div id="synthseq" aria-label="Synth melody sequencer grid" tabindex="0"></div>
 
   <div id="pattern-manager">
-    <input type="text" id="snippetName" placeholder="Pattern Name" aria-label="Pattern Name" />
+    <input type="text" id="snippetName" placeholder="Pattern Name (Optional)" aria-label="Pattern Name" />
+    <input type="text" id="snippetCat" placeholder="Category (Optional)" aria-label="Category" />
     <button id="saveBtn">Save Pattern</button>
+    <select id="catFilter" aria-label="Select Category"></select>
     <select id="savedSnippets" aria-label="Select Pattern"></select>
     <button id="loadBtn">Load Pattern</button>
   </div>
@@ -365,12 +367,7 @@
     <button id="messageBoxCloseBtn">OK</button>
   </div>
 
-<script type="module">
-// Firebase Imports
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
+<script>
 (() => {
   // --- STATE & CONSTANTS ---
   const drumNames = ["Kick", "Snare", "HiHat", "Clap", "Tom", "Rimshot"];
@@ -382,9 +379,6 @@ import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, onSnaps
   let synthChorusEnabled = false;
   let isPlaying = false, currentStep = 0, timerId = null, tempo = 125;
   
-  // --- FIREBASE STATE ---
-  let db, auth, userId = null, isAuthReady = false;
-
   // --- RECORDER STATE ---
   let mediaRecorder;
   let audioChunks = [];
@@ -401,7 +395,9 @@ import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, onSnaps
   ];
   const bgToneToggleBtn = document.getElementById('bgToneToggleBtn');
   const snippetNameInput = document.getElementById('snippetName');
+  const snippetCatInput = document.getElementById('snippetCat');
   const saveBtn = document.getElementById('saveBtn');
+  const catFilter = document.getElementById('catFilter');
   const savedSnippets = document.getElementById('savedSnippets');
   const loadBtn = document.getElementById('loadBtn');
   const messageBox = document.getElementById('messageBox');
@@ -412,7 +408,6 @@ import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, onSnaps
   const playLoopBtn = document.getElementById('playLoopBtn');
   const stopLoopBtn = document.getElementById('stopLoopBtn');
   const loopPlayer = document.getElementById('loopPlayer');
-  const userIdDisplay = document.getElementById('user-id-display');
 
   // --- AUDIO CONTEXT AND NODES ---
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -451,39 +446,7 @@ import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, onSnaps
     buildSynthGrid();
     setFiltersFromUI();
     setupEventListeners();
-    setupFirebase();
-  }
-
-  // --- FIREBASE SETUP ---
-  async function setupFirebase() {
-    try {
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "YOUR_API_KEY", authDomain: "...", projectId: "..." };
-        const app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                userId = user.uid;
-                userIdDisplay.textContent = `User ID: ${userId}`;
-                isAuthReady = true;
-                await loadUserPatterns();
-            } else {
-                userId = null;
-                isAuthReady = false;
-                userIdDisplay.textContent = 'Not signed in';
-            }
-        });
-
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-            await signInAnonymously(auth);
-        }
-    } catch (error) {
-        console.error("Firebase Initialization Error:", error);
-        showMessageBox('Error connecting to cloud storage.');
-    }
+    updateCategoryList();
   }
 
   // --- MESSAGE BOX ---
@@ -754,98 +717,98 @@ import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, onSnaps
     timerId = setTimeout(sequencerLoop, (60 / tempo) / 4 * 1000);
   }
 
-  // --- PATTERN MANAGEMENT (FIRESTORE) ---
-  async function loadUserPatterns() {
-    if (!isAuthReady || !userId) return;
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const patternsCollection = collection(db, `artifacts/${appId}/public/data/patterns`);
-    const q = query(patternsCollection, where("authorId", "==", userId));
-    try {
-        const querySnapshot = await getDocs(q);
-        savedSnippets.innerHTML = '<option value="">Load a pattern...</option>';
-        querySnapshot.forEach((doc) => {
-            const pattern = doc.data();
-            const option = document.createElement('option');
-            option.value = doc.id;
-            option.textContent = pattern.name;
-            savedSnippets.appendChild(option);
-        });
-    } catch (error) {
-        console.error("Error loading patterns: ", error);
-        showMessageBox('Failed to load your patterns.');
+  // --- PATTERN MANAGEMENT (LOCALSTORAGE) ---
+  function loadSnippetsFromLS() { return JSON.parse(localStorage.getItem('drumSynthPatternsMel') || '{}'); }
+  function saveSnippetsToLS(obj) { localStorage.setItem('drumSynthPatternsMel', JSON.stringify(obj)); }
+  
+  function updateCategoryList() {
+    const data = loadSnippetsFromLS();
+    const categories = Object.keys(data).sort();
+    catFilter.innerHTML = '';
+    categories.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      catFilter.appendChild(opt);
+    });
+    if (categories.length) {
+      catFilter.value = categories[0];
+      updatePatternList();
+    } else {
+      savedSnippets.innerHTML = '';
     }
   }
-  
-  async function saveCurrentPattern() {
-    if (!isAuthReady || !userId) {
-        showMessageBox('You must be signed in to save patterns.');
-        return;
+
+  function updatePatternList() {
+    const data = loadSnippetsFromLS();
+    const cat = catFilter.value;
+    savedSnippets.innerHTML = '';
+    if (data[cat]) {
+      data[cat].forEach((patternObj, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = patternObj.name || `Pattern ${idx + 1}`;
+        savedSnippets.appendChild(opt);
+      });
     }
+  }
+
+  function saveCurrentPattern() {
     const name = snippetNameInput.value.trim() || `Unnamed Pattern ${new Date().toLocaleString()}`;
+    const cat = snippetCatInput.value.trim() || 'Default';
     const settings = {};
     allSliders.forEach(id => settings[id] = document.getElementById(id).value);
     settings.isBgTonePlaying = bgToneOsc !== null;
     settings.synthChorusEnabled = synthChorusEnabled;
 
-    const patternData = {
+    let data = loadSnippetsFromLS();
+    if (!data[cat]) data[cat] = [];
+    data[cat].push({
         name,
-        authorId: userId,
-        createdAt: new Date().toISOString(),
         pattern: pattern.map(track => ({ steps: track.steps, chorusEnabled: track.chorusEnabled })),
         melody: synthSeqPattern,
         settings
-    };
-
-    try {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/patterns`), patternData);
-        showMessageBox(`Pattern "${name}" saved successfully!`);
-        snippetNameInput.value = '';
-        await loadUserPatterns();
-    } catch (error) {
-        console.error("Error saving pattern: ", error);
-        showMessageBox('Failed to save pattern. See console for details.');
-    }
+    });
+    saveSnippetsToLS(data);
+    updateCategoryList();
+    snippetNameInput.value = '';
+    snippetCatInput.value = '';
+    showMessageBox(`Pattern "${name}" saved in category "${cat}".`);
   }
 
-  async function loadSelectedPattern() {
-      const patternId = savedSnippets.value;
-      if (!patternId) return;
-      try {
-          const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-          const docRef = doc(db, `artifacts/${appId}/public/data/patterns`, patternId);
-          const docSnap = await getDoc(docRef);
+  function loadSelectedPattern() {
+      const cat = catFilter.value;
+      const idx = savedSnippets.value;
+      if (!cat || idx === null) return;
+      const data = loadSnippetsFromLS();
+      if (!data[cat] || !data[cat][idx]) return;
+      const loaded = data[cat][idx];
 
-          if (docSnap.exists()) {
-              const loaded = docSnap.data();
-              pattern = loaded.pattern;
-              synthSeqPattern = loaded.melody;
-              synthChorusEnabled = loaded.settings.synthChorusEnabled || false;
-              
-              buildSequencerGrid();
-              buildSynthGrid();
+      pattern = loaded.pattern.map(track => ({
+          steps: track.steps.slice(),
+          chorusEnabled: track.chorusEnabled ?? false
+      }));
+      synthSeqPattern = loaded.melody ? loaded.melody.slice() : Array(stepsCount).fill(null);
+      buildSequencerGrid();
+      buildSynthGrid();
 
-              allSliders.forEach(id => {
-                  if (loaded.settings[id]) {
-                      const slider = document.getElementById(id);
-                      const span = document.getElementById(id.replace('Cutoff', 'Val').replace('Amount', 'Val') + 'Val'); // a bit hacky
-                      slider.value = loaded.settings[id];
-                      if (span) span.textContent = slider.value;
-                  }
-              });
-              
-              if (loaded.settings.isBgTonePlaying) startBackgroundTone();
-              else stopBackgroundTone();
-              
-              setFiltersFromUI();
-              showMessageBox(`Pattern "${loaded.name}" loaded.`);
-          } else {
-              showMessageBox('Could not find the selected pattern.');
+      allSliders.forEach(id => {
+          if (loaded.settings?.[id]) {
+              const slider = document.getElementById(id);
+              slider.value = loaded.settings[id];
+              // Trigger input event to update the span
+              slider.dispatchEvent(new Event('input'));
           }
-      } catch (error) {
-          console.error("Error loading pattern:", error);
-          showMessageBox('Failed to load pattern. See console for details.');
-      }
+      });
+      
+      if (loaded.settings?.isBgTonePlaying) startBackgroundTone();
+      else stopBackgroundTone();
+      
+      synthChorusEnabled = loaded.settings?.synthChorusEnabled ?? false;
+      document.getElementById('synthChorusToggle').checked = synthChorusEnabled;
+      
+      setFiltersFromUI();
+      showMessageBox(`Pattern "${loaded.name}" loaded.`);
   }
   
   // --- RECORDER FUNCTIONS ---
@@ -911,6 +874,7 @@ import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, onSnaps
     });
     saveBtn.onclick = saveCurrentPattern;
     loadBtn.onclick = loadSelectedPattern;
+    catFilter.onchange = updatePatternList;
     recordBtn.onclick = startRecording;
     stopRecordBtn.onclick = stopRecording;
     playLoopBtn.onclick = playLoop;
