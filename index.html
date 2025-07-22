@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <title>Drum Machine + Synth with EQ & Filters</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <style>
+    html, body {
+      overscroll-behavior: contain;
+      touch-action: manipulation;
+    }
     body {
       background: #121212;
       color: #eee;
@@ -214,7 +219,6 @@
   }
   function highlightStep(stepIdx) {
     const stepBtns = seqDiv.querySelectorAll('.step');
-    // 6 rows x stepsCount columns; step in each row index goes from 0,stepsCount,... (column-major)
     for (let i = 0; i < drumNames.length; i++)
       for (let j = 0; j < stepsCount; j++) {
         const idx = i * stepsCount + j;
@@ -232,7 +236,6 @@
       cell.innerHTML = synthSeqPattern[s] === null ? '' : noteNames[synthSeqPattern[s]];
       cell.title = 'Click to set melody (C D E F G A B C); more clicks=advance/rest';
       cell.onclick = () => {
-        // cycle: null -> 0 -> 1 -> ... -> max -> null
         if (synthSeqPattern[s] === null)
           synthSeqPattern[s] = 0;
         else if (synthSeqPattern[s] < scale.length-1)
@@ -306,7 +309,7 @@
         case 5: playNoise(0.05, 'highpass', 4000); break; // Rimshot
       }
     }
-    // Melody synth - one note per step, monophonic, pass through same filter chain
+    // Melody synth
     if (synthSeqPattern[step] !== null) {
       playSynthNote(scale[synthSeqPattern[step]]);
     }
@@ -447,6 +450,17 @@
 
   // --- Initial build
   buildSequencerGrid(); buildSynthGrid(); setFiltersFromUI(); updateCategoryList();
+
+  // ---- Prevent touch scroll on sliders for mobile ----
+  document.querySelectorAll('input[type="range"]').forEach(slider => {
+    slider.addEventListener('touchstart', e => {
+      e.stopPropagation();
+    }, {passive: false});
+    slider.addEventListener('touchmove', e => {
+      e.stopPropagation();
+      e.preventDefault();
+    }, {passive: false});
+  });
 })();
 </script>
 </body>
