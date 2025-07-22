@@ -318,6 +318,11 @@
       <input type="range" min="0" max="1" step="0.01" value="0.5" id="tremoloDepth" />
       <span id="tremoloDepthVal">0.5</span>
     </div>
+    <div class="control-group">
+      <label for="reverbMix">Reverb Mix</label>
+      <input type="range" min="0" max="1" step="0.01" value="0" id="reverbMix" />
+      <span id="reverbMixVal">0</span>
+    </div>
   </div>
 
   <div class="module-controls">
@@ -391,7 +396,7 @@
   const allSliders = [
     'lpfCutoff','hpfCutoff','eqFreq','eqGain', 'distortionAmount', 'delayTime', 
     'delayFeedback', 'delayMix', 'flangerDelay', 'flangerDepth', 'flangerFeedback', 
-    'flangerSpeed', 'tremoloFreq', 'tremoloDepth', 'bgToneFreq'
+    'flangerSpeed', 'tremoloFreq', 'tremoloDepth', 'bgToneFreq', 'reverbMix'
   ];
   const bgToneToggleBtn = document.getElementById('bgToneToggleBtn');
   const snippetNameInput = document.getElementById('snippetName');
@@ -434,10 +439,14 @@
   const lpfNode = ctx.createBiquadFilter();
   let bgToneOsc = null;
   const bgToneGain = ctx.createGain();
+  const reverbNode = ctx.createConvolver();
+  const reverbWetGain = ctx.createGain();
+  const reverbDryGain = ctx.createGain();
+  const reverbOutput = ctx.createGain();
   
   // --- RECORDER SETUP ---
   const mediaStreamDestination = ctx.createMediaStreamDestination();
-  lpfNode.connect(mediaStreamDestination); // Connect final output to recorder stream
+  reverbOutput.connect(mediaStreamDestination); // Connect final output to recorder stream
 
   // --- INITIALIZE ---
   function init() {
@@ -534,6 +543,18 @@
   }
 
   // --- AUDIO CHAIN & EFFECTS ---
+  function createReverbImpulseResponse(duration = 2, decay = 2) {
+      const sampleRate = ctx.sampleRate;
+      const length = sampleRate * duration;
+      const impulse = ctx.createBuffer(2, length, sampleRate);
+      const impulseL = impulse.getChannelData(0);
+      const impulseR = impulse.getChannelData(1);
+      for (let i = 0; i < length; i++) {
+          impulseL[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+          impulseR[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+      }
+      return impulse;
+  }
   function setupAudioChain() {
     distortionNode.connect(distortionGain);
     distortionGain.connect(mainInputNode);
@@ -568,7 +589,14 @@
     echoOutput.connect(hpfNode);
     hpfNode.connect(eqNode);
     eqNode.connect(lpfNode);
-    lpfNode.connect(ctx.destination);
+    // Reverb setup
+    reverbNode.buffer = createReverbImpulseResponse();
+    lpfNode.connect(reverbDryGain);
+    lpfNode.connect(reverbNode);
+    reverbNode.connect(reverbWetGain);
+    reverbDryGain.connect(reverbOutput);
+    reverbWetGain.connect(reverbOutput);
+    reverbOutput.connect(ctx.destination);
     bgToneGain.gain.value = 0.1;
     bgToneGain.connect(distortionNode);
   }
@@ -623,6 +651,9 @@
     tremoloLFO.frequency.value = +document.getElementById('tremoloFreq').value;
     tremoloDepthGain.gain.value = +document.getElementById('tremoloDepth').value;
     if (bgToneOsc) bgToneOsc.frequency.value = +document.getElementById('bgToneFreq').value;
+    const reverbMix = +document.getElementById('reverbMix').value;
+    reverbDryGain.gain.value = 1 - reverbMix;
+    reverbWetGain.gain.value = reverbMix;
   }
 
   // --- SOUND PLAYBACK ---
@@ -868,6 +899,7 @@
         let targetSpanId = id.replace('Cutoff', 'Val').replace('Amount', 'Val') + 'Val';
         if (id.includes('lpf')) targetSpanId = 'lpfVal';
         if (id.includes('hpf')) targetSpanId = 'hpfVal';
+        if (id.includes('reverb')) targetSpanId = 'reverbMixVal';
         const targetSpan = document.getElementById(targetSpanId);
         if (targetSpan) targetSpan.textContent = e.target.value;
       };
