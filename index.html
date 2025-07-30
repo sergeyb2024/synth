@@ -79,6 +79,15 @@
       box-shadow: 0 4px 6px rgba(0, 170, 255, 0.3);
     }
     button:hover { background: #08a; }
+    button.recording {
+        background: #f44336; /* Red for recording */
+        animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(244, 67, 54, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+    }
     #messageBox {
       position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
       background: #333; color: #eee; padding: 20px; border-radius: 8px;
@@ -129,6 +138,9 @@
             <div class="control-group w-full"><label>HPF</label><input type="range" min="20" max="10000" value="20" id="master-hpf" /><span id="master-hpf-val">20</span></div>
             <div class="control-group w-full"><label>Reverb</label><input type="range" min="0" max="1" step="0.01" value="0" id="master-reverb" /><span id="master-reverb-val">0</span></div>
             <div class="control-group w-full"><label>EQ Gain</label><input type="range" min="-12" max="12" value="0" id="master-eqgain" /><span id="master-eqgain-val">0</span></div>
+       </div>
+       <div class="w-full pt-4 border-t border-gray-700">
+            <button id="master-record" class="w-full">Record Mix</button>
        </div>
     </div>
 
@@ -481,8 +493,8 @@ gainB.connect(masterBus);
 const masterLpf = audioCtx.createBiquadFilter();
 masterLpf.type = 'lowpass';
 masterLpf.frequency.value = 20000;
-const masterHpf = audioCtx.createBiquadFilter(); // Changed from BPF
-masterHpf.type = 'highpass'; // Changed from bandpass
+const masterHpf = audioCtx.createBiquadFilter();
+masterHpf.type = 'highpass';
 masterHpf.frequency.value = 20;
 const masterEq = audioCtx.createBiquadFilter();
 masterEq.type = 'peaking';
@@ -494,14 +506,20 @@ const masterReverbDry = audioCtx.createGain();
 masterReverbDry.gain.value = 1;
 
 // Master Chain
-masterBus.connect(masterHpf); // Changed from BPF
+masterBus.connect(masterHpf);
 masterHpf.connect(masterEq);
 masterEq.connect(masterLpf);
 masterLpf.connect(masterReverbDry);
 masterLpf.connect(masterReverb);
 masterReverb.connect(masterReverbWet);
+
+// Master Recorder Setup
+const masterRecorderDestination = audioCtx.createMediaStreamDestination();
+masterReverbDry.connect(masterRecorderDestination);
+masterReverbWet.connect(masterRecorderDestination);
 masterReverbDry.connect(audioCtx.destination);
 masterReverbWet.connect(audioCtx.destination);
+
 
 // Create reverb impulse
 const sampleRate = audioCtx.sampleRate;
@@ -531,7 +549,7 @@ crossfader.addEventListener('input', (e) => {
 crossfader.dispatchEvent(new Event('input')); // Set initial position
 
 document.getElementById('master-lpf').addEventListener('input', e => masterLpf.frequency.value = e.target.value);
-document.getElementById('master-hpf').addEventListener('input', e => masterHpf.frequency.value = e.target.value); // Changed from BPF
+document.getElementById('master-hpf').addEventListener('input', e => masterHpf.frequency.value = e.target.value);
 document.getElementById('master-eqgain').addEventListener('input', e => masterEq.gain.value = e.target.value);
 document.getElementById('master-reverb').addEventListener('input', e => {
     const mix = parseFloat(e.target.value);
@@ -555,6 +573,52 @@ deckToggleBtn.addEventListener('click', () => {
         deckToggleBtn.textContent = 'Show Deck A';
     }
 });
+
+// --- Master Recorder ---
+let masterRecorder;
+let isMasterRecording = false;
+let audioChunks = [];
+const masterRecordBtn = document.getElementById('master-record');
+
+masterRecordBtn.addEventListener('click', () => {
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    isMasterRecording = !isMasterRecording;
+    if (isMasterRecording) {
+        startMasterRecording();
+    } else {
+        stopMasterRecording();
+    }
+});
+
+function startMasterRecording() {
+    audioChunks = [];
+    masterRecorder = new MediaRecorder(masterRecorderDestination.stream);
+    masterRecorder.ondataavailable = event => audioChunks.push(event.data);
+    masterRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        const url = URL.createObjectURL(audioBlob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'dj-mix.wav';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        showMessageBox('Recording saved to your downloads!');
+    };
+    masterRecorder.start();
+    masterRecordBtn.textContent = 'Stop Recording';
+    masterRecordBtn.classList.add('recording');
+}
+
+function stopMasterRecording() {
+    masterRecorder.stop();
+    masterRecordBtn.textContent = 'Record Mix';
+    masterRecordBtn.classList.remove('recording');
+}
+
 
 function showMessageBox(message) {
     document.getElementById('messageBoxText').textContent = message;
