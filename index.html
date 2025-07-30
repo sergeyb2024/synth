@@ -45,23 +45,32 @@
     input[type=range] {
       width: 100%;
       background: #333;
-      height: 6px;
-      border-radius: 3px;
+      height: 8px; /* Make the track slightly thicker */
+      border-radius: 4px;
       cursor: pointer;
       -webkit-appearance: none; /* For Chrome/Safari */
       appearance: none;
       margin-top: 8px;
-      touch-action: pan-x; /* Prevent vertical scroll when interacting with sliders on touch devices */
+      touch-action: pan-x; /* Prevent vertical scroll when interacting with sliders */
     }
     input[type=range]::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 16px; height: 16px; background: #0af;
-      cursor: pointer; border-radius: 50%; border: none; margin-top: -5px;
+      width: 24px; /* Increase thumb size */
+      height: 24px; /* Increase thumb size */
+      background: #0af;
+      cursor: pointer;
+      border-radius: 50%;
+      border: none;
+      margin-top: -8px; /* Adjust margin to re-center the larger thumb */
       box-shadow: 0 0 4px rgba(0, 170, 255, 0.7);
     }
     input[type=range]::-moz-range-thumb {
-      width: 16px; height: 16px; background: #0af;
-      cursor: pointer; border-radius: 50%; border: none;
+      width: 24px; /* Increase thumb size */
+      height: 24px; /* Increase thumb size */
+      background: #0af;
+      cursor: pointer;
+      border-radius: 50%;
+      border: none;
       box-shadow: 0 0 4px rgba(0, 170, 255, 0.7);
     }
     span {
@@ -339,6 +348,7 @@
         <button id="stopRecordBtn" disabled>Stop Recording</button>
         <button id="playLoopBtn" disabled>Play Loop</button>
         <button id="stopLoopBtn" disabled>Stop Loop</button>
+        <button id="downloadBtn" disabled>Download WAV</button>
         <audio id="loopPlayer" loop></audio>
     </div>
   </div>
@@ -387,6 +397,7 @@
   // --- RECORDER STATE ---
   let mediaRecorder;
   let audioChunks = [];
+  let recordedAudioUrl = null;
 
   // --- UI REFERENCES ---
   const seqDiv = document.getElementById('sequencer');
@@ -413,6 +424,7 @@
   const playLoopBtn = document.getElementById('playLoopBtn');
   const stopLoopBtn = document.getElementById('stopLoopBtn');
   const loopPlayer = document.getElementById('loopPlayer');
+  const downloadBtn = document.getElementById('downloadBtn');
 
   // --- AUDIO CONTEXT AND NODES ---
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -450,6 +462,10 @@
 
   // --- INITIALIZE ---
   function init() {
+    if (!window.MediaRecorder) {
+        showMessageBox('Audio recording is not supported in this browser.');
+        recordBtn.disabled = true;
+    }
     setupAudioChain();
     buildSequencerGrid();
     buildSynthGrid();
@@ -827,7 +843,6 @@
           if (loaded.settings?.[id]) {
               const slider = document.getElementById(id);
               slider.value = loaded.settings[id];
-              // Trigger input event to update the span
               slider.dispatchEvent(new Event('input'));
           }
       });
@@ -845,31 +860,80 @@
   // --- RECORDER FUNCTIONS ---
   function startRecording() {
     if (ctx.state === 'suspended') ctx.resume();
+    
+    if (recordedAudioUrl) {
+        URL.revokeObjectURL(recordedAudioUrl);
+        recordedAudioUrl = null;
+    }
+
     audioChunks = [];
     mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
-    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-    mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        loopPlayer.src = audioUrl;
-        playLoopBtn.disabled = false;
-        stopRecordBtn.disabled = true;
-        recordBtn.disabled = false;
+    
+    mediaRecorder.ondataavailable = event => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
     };
-    mediaRecorder.start();
+    
+    mediaRecorder.onstop = () => {
+        if (audioChunks.length === 0) {
+            showMessageBox('Recording failed or the recording was empty. Please ensure audio is playing and try again.');
+            recordBtn.disabled = false;
+            stopRecordBtn.disabled = true;
+            return;
+        }
+        
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        recordedAudioUrl = URL.createObjectURL(audioBlob);
+        loopPlayer.src = recordedAudioUrl;
+        
+        showMessageBox('Recording complete! Ready for playback or download.');
+        
+        playLoopBtn.disabled = false;
+        downloadBtn.disabled = false;
+        recordBtn.disabled = false;
+        stopRecordBtn.disabled = true;
+    };
+    
+    // Start recording with a timeslice for improved stability.
+    mediaRecorder.start(100); 
+    
+    showMessageBox('Recording started...');
     recordBtn.disabled = true;
     stopRecordBtn.disabled = false;
+    playLoopBtn.disabled = true;
+    downloadBtn.disabled = true;
+    stopLoopBtn.disabled = true;
   }
+
   function stopRecording() {
-    mediaRecorder.stop();
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+    }
   }
+
   function playLoop() {
     loopPlayer.play();
     stopLoopBtn.disabled = false;
+    playLoopBtn.disabled = true;
   }
+
   function stopLoop() {
     loopPlayer.pause();
     loopPlayer.currentTime = 0;
+    stopLoopBtn.disabled = true;
+    playLoopBtn.disabled = false;
+  }
+
+  function downloadRecording() {
+    if (!recordedAudioUrl) return;
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = recordedAudioUrl;
+    a.download = `web-audio-jam.wav`;
+    document.body.appendChild(a);
+a.click();
+    document.body.removeChild(a);
   }
 
   // --- EVENT LISTENERS ---
@@ -911,6 +975,7 @@
     stopRecordBtn.onclick = stopRecording;
     playLoopBtn.onclick = playLoop;
     stopLoopBtn.onclick = stopLoop;
+    downloadBtn.onclick = downloadRecording;
   }
 
   // --- START THE APP ---
