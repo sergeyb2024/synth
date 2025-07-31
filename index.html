@@ -3,55 +3,115 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Web Audio DJ Controller</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <title>Drum Machine + Synth with Advanced Effects</title>
   <style>
     body {
-      background: #0a0a0a;
+      background: #121212;
       color: #eee;
-      font-family: 'Inter', sans-serif;
+      font-family: 'Inter', sans-serif; /* Using Inter font */
+      margin: 20px;
       user-select: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: 50px; /* Space for footer */
     }
-    .deck {
+    h2 {
+      margin-bottom: 0.2em;
+      color: #0af;
+      text-align: center;
+    }
+    .controls, .effect-controls {
+      margin-bottom: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 1000px; /* Limit width for better readability */
+      padding: 10px;
       background: #1a1a1a;
       border-radius: 8px;
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      padding: 1rem;
     }
     .control-group {
       display: flex;
       flex-direction: column;
-      font-size: 0.8rem;
-      min-width: 90px;
-      flex-grow: 1;
+      font-size: 0.9rem;
+      min-width: 120px; /* Ensure controls don't get too narrow */
+      flex-grow: 1; /* Allow groups to grow */
     }
     input[type=range] {
       width: 100%;
       background: #333;
-      height: 12px; /* Increased height for better touch target */
-      border-radius: 6px;
+      height: 6px;
+      border-radius: 3px;
       cursor: pointer;
-      -webkit-appearance: none;
+      -webkit-appearance: none; /* For Chrome/Safari */
       appearance: none;
       margin-top: 8px;
-      touch-action: pan-x;
     }
     input[type=range]::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 24px; height: 24px; /* Larger thumb for touch */
-      background: #0af;
-      cursor: pointer; border-radius: 50%; border: none;
+      width: 16px; height: 16px; background: #0af;
+      cursor: pointer; border-radius: 50%; border: none; margin-top: -5px;
       box-shadow: 0 0 4px rgba(0, 170, 255, 0.7);
     }
     input[type=range]::-moz-range-thumb {
-      width: 24px; height: 24px; /* Larger thumb for touch */
-      background: #0af;
+      width: 16px; height: 16px; background: #0af;
       cursor: pointer; border-radius: 50%; border: none;
       box-shadow: 0 0 4px rgba(0, 170, 255, 0.7);
     }
+    span {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #bbb;
+      margin-top: 4px;
+    }
+
+    #sequencer, #synthseq {
+      display: grid;
+      grid-template-columns: repeat(16, 28px);
+      gap: 6px 8px;
+      margin-bottom: 20px;
+      user-select: none;
+      width: 100%;
+      max-width: fit-content; /* Adjust based on stepsCount */
+      justify-content: center;
+    }
+    .drum-label, #melody-label {
+      grid-column: span 16;
+      margin-top: 12px;
+      margin-bottom: 3px;
+      font-weight: 600;
+      color: #0af;
+    }
+    .drum-label-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        grid-column: span 16;
+        margin-top: 12px;
+        margin-bottom: 3px;
+        font-weight: 600;
+        color: #0af;
+    }
+    .drum-label-container label {
+        font-size: 0.8em;
+        color: #bbb;
+        margin-left: -5px; /* Adjust checkbox label position */
+    }
+    .drum-label-container input[type="checkbox"] {
+        margin-left: 5px;
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        accent-color: #0af; /* Style checkbox */
+    }
+
     .step, .melstep {
-      width: 100%; height: 28px;
+      width: 28px; height: 28px;
       background: #333;
       border-radius: 4px;
       cursor: pointer;
@@ -78,556 +138,920 @@
       transition: background-color 0.3s, transform 0.1s;
       box-shadow: 0 4px 6px rgba(0, 170, 255, 0.3);
     }
-    button:hover { background: #08a; }
-    button.recording {
-        background: #f44336; /* Red for recording */
-        animation: pulse 1.5s infinite;
+    button:hover {
+      background: #08a;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 8px rgba(0, 170, 255, 0.4);
     }
-    @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7); }
-        70% { box-shadow: 0 0 0 10px rgba(244, 67, 54, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+    button:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 4px rgba(0, 170, 255, 0.2);
     }
+    input[type=text] {
+      padding: 5px 8px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #222;
+      color: #eee;
+      font-size: 0.9rem;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    input[type=text]:focus {
+      border-color: #0af;
+      box-shadow: 0 0 5px rgba(0, 170, 255, 0.5);
+      outline: none;
+    }
+    select {
+      background: #222;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 4px 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    select:focus {
+      border-color: #0af;
+      box-shadow: 0 0 5px rgba(0, 170, 255, 0.5);
+      outline: none;
+    }
+    #pattern-manager {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 1000px;
+      padding: 10px;
+      background: #1a1a1a;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    footer {
+      margin-top: 40px;
+      font-size: 0.8rem;
+      color: #444;
+      text-align: center;
+      user-select: none;
+    }
+
+    /* Message Box Styles */
     #messageBox {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: #333; color: #eee; padding: 20px; border-radius: 8px;
-      box-shadow: 0 0 15px rgba(0, 0, 0, 0.5); z-index: 1000;
-      display: none; text-align: center; min-width: 250px; max-width: 80%;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #333;
+      color: #eee;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      display: none; /* Hidden by default */
+      text-align: center;
+      min-width: 250px;
+      max-width: 80%;
     }
-    #messageBox button { margin-top: 15px; }
-    .sequencer-grid {
-        display: grid;
-        grid-template-columns: repeat(16, minmax(0, 1fr));
-        gap: 4px;
+    #messageBox button {
+      margin-top: 15px;
+      padding: 8px 20px;
+      background: #0af;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
     }
-    .drum-label-container {
-        grid-column: span 16;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 600;
-        color: #0af;
+    #messageBox button:hover {
+      background: #08a;
+    }
+
+    @media (max-width: 600px) {
+      #sequencer, #synthseq { grid-template-columns: repeat(8, 28px);}
+      .controls, .effect-controls, #pattern-manager {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .control-group {
+        max-width: 100%;
+      }
     }
   </style>
 </head>
-<body class="p-4">
-  <h1 class="text-3xl font-bold text-center mb-4 text-cyan-400">Web Audio DJ Controller</h1>
-  
-  <div class="grid grid-cols-1 lg:grid-cols-11 gap-4">
-    <!-- Deck A -->
-    <div class="lg:col-span-5 deck" id="deck-A">
-      <h2 class="text-2xl font-bold text-center mb-4 text-cyan-400">Deck A</h2>
-      <!-- All controls will be dynamically inserted here -->
-    </div>
+<body>
+  <h2>Web Drum Machine + Synthesizer</h2>
 
-    <!-- Mixer -->
-    <div class="lg:col-span-1 deck flex flex-col items-center justify-center bg-black/50 space-y-4" id="mixer">
-       <h2 class="text-2xl font-bold text-center mb-4 text-white">MIXER</h2>
-       <button id="deck-toggle" class="lg:hidden w-full py-2 px-4 bg-purple-600 hover:bg-purple-500 rounded-lg">Show Deck B</button>
-       <div class="control-group w-full">
-         <label for="crossfader" class="text-center">Crossfader</label>
-         <input type="range" min="-1" max="1" value="0" step="0.01" id="crossfader" class="w-full" />
-         <div class="flex justify-between text-xs mt-1 px-1">
-           <span>A</span>
-           <span>B</span>
-         </div>
-       </div>
-       <div id="master-effects" class="w-full space-y-4 pt-4 border-t border-gray-700">
-            <h3 class="text-lg font-bold text-center text-white">Master FX</h3>
-            <div class="control-group w-full"><label>LPF</label><input type="range" min="100" max="20000" value="20000" id="master-lpf" /><span id="master-lpf-val">20k</span></div>
-            <div class="control-group w-full"><label>HPF</label><input type="range" min="20" max="10000" value="20" id="master-hpf" /><span id="master-hpf-val">20</span></div>
-            <div class="control-group w-full"><label>Reverb</label><input type="range" min="0" max="1" step="0.01" value="0" id="master-reverb" /><span id="master-reverb-val">0</span></div>
-            <div class="control-group w-full"><label>EQ Gain</label><input type="range" min="-12" max="12" value="0" id="master-eqgain" /><span id="master-eqgain-val">0</span></div>
-       </div>
-       <div class="w-full pt-4 border-t border-gray-700">
-            <button id="master-record" class="w-full">Record Mix</button>
-       </div>
+  <div class="controls">
+    <div class="control-group">
+      <label for="lpfCutoff">LPF Cutoff (Hz)</label>
+      <input type="range" min="100" max="4000" value="800" id="lpfCutoff" />
+      <span id="lpfVal">800</span>
     </div>
-
-    <!-- Deck B -->
-    <div class="lg:col-span-5 deck hidden lg:block" id="deck-B">
-      <h2 class="text-2xl font-bold text-center mb-4 text-cyan-400">Deck B</h2>
-       <!-- All controls will be dynamically inserted here -->
+    <div class="control-group">
+      <label for="hpfCutoff">HPF Cutoff (Hz)</label>
+      <input type="range" min="50" max="3500" value="150" id="hpfCutoff" />
+      <span id="hpfVal">150</span>
+    </div>
+    <div class="control-group">
+      <label for="eqFreq">EQ Frequency (Hz)</label>
+      <input type="range" min="200" max="2000" value="600" id="eqFreq" />
+      <span id="eqFreqVal">600</span>
+    </div>
+    <div class="control-group">
+      <label for="eqGain">EQ Gain (dB)</label>
+      <input type="range" min="-12" max="12" value="0" id="eqGain" />
+      <span id="eqGainVal">0</span>
     </div>
   </div>
 
+  <div class="effect-controls">
+    <h3>Effects</h3>
+    <div class="control-group">
+      <label for="distortionAmount">Distortion</label>
+      <input type="range" min="0" max="100" value="0" id="distortionAmount" />
+      <span id="distortionVal">0</span>
+    </div>
+    <div class="control-group">
+      <label for="delayTime">Echo Time (s)</label>
+      <input type="range" min="0" max="1" step="0.01" value="0.3" id="delayTime" />
+      <span id="delayTimeVal">0.3</span>
+    </div>
+    <div class="control-group">
+      <label for="delayFeedback">Echo Feedback</label>
+      <input type="range" min="0" max="0.95" step="0.01" value="0.4" id="delayFeedback" />
+      <span id="delayFeedbackVal">0.4</span>
+    </div>
+    <div class="control-group">
+      <label for="delayMix">Echo Mix</label>
+      <input type="range" min="0" max="1" step="0.01" value="0.3" id="delayMix" />
+      <span id="delayMixVal">0.3</span>
+    </div>
+    <div class="control-group">
+      <label for="flangerDelay">Flanger Delay (ms)</label>
+      <input type="range" min="0" max="10" step="0.1" value="2" id="flangerDelay" />
+      <span id="flangerDelayVal">2</span>
+    </div>
+    <div class="control-group">
+      <label for="flangerDepth">Flanger Depth</label>
+      <input type="range" min="0" max="1" step="0.01" value="0.5" id="flangerDepth" />
+      <span id="flangerDepthVal">0.5</span>
+    </div>
+    <div class="control-group">
+      <label for="flangerFeedback">Flanger Feedback</label>
+      <input type="range" min="0" max="0.95" step="0.01" value="0.5" id="flangerFeedback" />
+      <span id="flangerFeedbackVal">0.5</span>
+    </div>
+    <div class="control-group">
+      <label for="flangerSpeed">Flanger Speed (Hz)</label>
+      <input type="range" min="0.1" max="10" step="0.1" value="1" id="flangerSpeed" />
+      <span id="flangerSpeedVal">1</span>
+    </div>
+    <div class="control-group">
+      <label for="tremoloFreq">Tremolo Freq (Hz)</label>
+      <input type="range" min="0.1" max="20" step="0.1" value="5" id="tremoloFreq" />
+      <span id="tremoloFreqVal">5</span>
+    </div>
+    <div class="control-group">
+      <label for="tremoloDepth">Tremolo Depth</label>
+      <input type="range" min="0" max="1" step="0.01" value="0.5" id="tremoloDepth" />
+      <span id="tremoloDepthVal">0.5</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <h3>Background Tone</h3>
+    <div class="control-group">
+      <label for="bgToneFreq">Frequency (Hz)</label>
+      <input type="range" min="50" max="500" value="100" id="bgToneFreq" />
+      <span id="bgToneFreqVal">100</span>
+    </div>
+    <button id="bgToneToggleBtn">Tone On/Off</button>
+  </div>
+
+  <div style="margin-bottom: 20px;">
+    <button id="playBtn">▶ Play</button>
+    <button id="stopBtn" disabled>■ Stop</button>
+  </div>
+
+  <div id="sequencer" aria-label="Drum machine sequencer grid" role="grid" tabindex="0"></div>
+  <div id="melody-label-container" class="drum-label-container" style="margin-top:12px; color:#96f;">
+    <span id="melody-label">Synth Melody</span>
+    <input type="checkbox" id="synthChorusToggle" title="Enable chorus for Synth Melody" />
+    <label for="synthChorusToggle">Chorus</label>
+  </div>
+  <div id="synthseq" aria-label="Synth melody sequencer grid" tabindex="0"></div>
+
+  <div id="pattern-manager">
+    <input type="text" id="snippetName" placeholder="Pattern Name (Optional)" aria-label="Pattern Name" />
+    <input type="text" id="snippetCat" placeholder="Category (Optional)" aria-label="Category" />
+    <button id="saveBtn">Save Pattern</button>
+    <select id="catFilter" aria-label="Select Category"></select>
+    <select id="savedSnippets" aria-label="Select Pattern"></select>
+    <button id="loadBtn">Load Pattern</button>
+  </div>
+
+  <footer>&copy; 2025 Web Audio Drum & Synth App</footer>
+
+  <!-- Message Box HTML -->
   <div id="messageBox">
     <p id="messageBoxText"></p>
     <button id="messageBoxCloseBtn">OK</button>
   </div>
 
 <script>
-const drumNames = ["Kick", "Snare", "HiHat", "Clap", "Tom", "Rimshot"];
-const stepsCount = 16;
-const scale = [60, 62, 64, 65, 67, 69, 71, 72];
-const noteNames = ['C','D','E','F','G','A','B','C'];
+(() => {
+  const drumNames = ["Kick", "Snare", "HiHat", "Clap", "Tom", "Rimshot"];
+  const stepsCount = 16;
+  // Pattern now stores chorusEnabled for each drum track
+  let pattern = drumNames.map(() => ({ steps: new Array(stepsCount).fill(false), chorusEnabled: false }));
+  const scale = [60, 62, 64, 65, 67, 69, 71, 72];   // C4 to C5
+  const noteNames = ['C','D','E','F','G','A','B','C']; // UI
+  let synthSeqPattern = Array(stepsCount).fill(null);
+  let synthChorusEnabled = false; // Separate state for synth chorus
 
-class Deck {
-    constructor(id, audioContext, masterGain) {
-        this.id = id;
-        this.ctx = audioContext;
-        this.container = document.getElementById(`deck-${id}`);
-        this.masterGain = masterGain;
+  // UI references
+  const seqDiv = document.getElementById('sequencer');
+  const synthSeqDiv = document.getElementById('synthseq');
+  const playBtn = document.getElementById('playBtn');
+  const stopBtn = document.getElementById('stopBtn');
 
-        this.pattern = drumNames.map(() => ({ steps: new Array(stepsCount).fill(false), chorusEnabled: false }));
-        this.synthSeqPattern = Array(stepsCount).fill(null);
-        this.synthChorusEnabled = false;
-        this.isPlaying = false;
-        this.currentStep = 0;
-        this.timerId = null;
-        this.tempo = 125;
-        
-        this.allSliders = [
-            'lpfCutoff', 'hpfCutoff', 'lowGain', 'midGain', 'highGain', 
-            'distortionAmount', 'delayTime', 'delayFeedback', 'delayMix', 
-            'flangerSpeed', 'tremoloFreq', 'tremoloDepth', 'reverbMix'
-        ];
+  // Filter/EQ Sliders
+  const lpfSlider = document.getElementById('lpfCutoff');
+  const hpfSlider = document.getElementById('hpfCutoff');
+  const eqFreqSlider = document.getElementById('eqFreq');
+  const eqGainSlider = document.getElementById('eqGain');
+  const lpfVal = document.getElementById('lpfVal');
+  const hpfVal = document.getElementById('hpfVal');
+  const eqFreqVal = document.getElementById('eqFreqVal');
+  const eqGainVal = document.getElementById('eqGainVal');
 
-        this.initUI();
-        this.initAudio();
-        this.setupEventListeners();
-        this.updateCategoryList();
-    }
+  // Effect Sliders
+  const distortionSlider = document.getElementById('distortionAmount');
+  const distortionVal = document.getElementById('distortionVal');
+  const delayTimeSlider = document.getElementById('delayTime');
+  const delayFeedbackSlider = document.getElementById('delayFeedback');
+  const delayMixSlider = document.getElementById('delayMix');
+  const delayTimeVal = document.getElementById('delayTimeVal');
+  const delayFeedbackVal = document.getElementById('delayFeedbackVal');
+  const delayMixVal = document.getElementById('delayMixVal');
+  const flangerDelaySlider = document.getElementById('flangerDelay');
+  const flangerDepthSlider = document.getElementById('flangerDepth');
+  const flangerFeedbackSlider = document.getElementById('flangerFeedback');
+  const flangerSpeedSlider = document.getElementById('flangerSpeed');
+  const flangerDelayVal = document.getElementById('flangerDelayVal');
+  const flangerDepthVal = document.getElementById('flangerDepthVal');
+  const flangerFeedbackVal = document.getElementById('flangerFeedbackVal');
+  const flangerSpeedVal = document.getElementById('flangerSpeedVal');
+  const tremoloFreqSlider = document.getElementById('tremoloFreq');
+  const tremoloDepthSlider = document.getElementById('tremoloDepth');
+  const tremoloFreqVal = document.getElementById('tremoloFreqVal');
+  const tremoloDepthVal = document.getElementById('tremoloDepthVal');
 
-    initUI() {
-        this.container.innerHTML += `
-            <div class="main-controls">
-                <div class="control-group"><label>LPF Cutoff</label><input type="range" min="100" max="8000" value="8000" id="lpfCutoff-${this.id}" /><span id="lpfCutoffVal-${this.id}">8000</span></div>
-                <div class="control-group"><label>HPF Cutoff</label><input type="range" min="20" max="4000" value="20" id="hpfCutoff-${this.id}" /><span id="hpfCutoffVal-${this.id}">20</span></div>
-                <div class="control-group"><label>High Gain</label><input type="range" min="-24" max="12" value="0" id="highGain-${this.id}" /><span id="highGainVal-${this.id}">0</span></div>
-                <div class="control-group"><label>Mid Gain</label><input type="range" min="-24" max="12" value="0" id="midGain-${this.id}" /><span id="midGainVal-${this.id}">0</span></div>
-                <div class="control-group"><label>Low Gain</label><input type="range" min="-24" max="12" value="0" id="lowGain-${this.id}" /><span id="lowGainVal-${this.id}">0</span></div>
-            </div>
-            <div class="effect-controls flex flex-wrap gap-4">
-                <div class="control-group"><label>Distortion</label><input type="range" min="0" max="100" value="0" id="distortionAmount-${this.id}" /><span id="distortionAmountVal-${this.id}">0</span></div>
-                <div class="control-group"><label>Reverb Mix</label><input type="range" min="0" max="1" step="0.01" value="0" id="reverbMix-${this.id}" /><span id="reverbMixVal-${this.id}">0</span></div>
-                <div class="control-group"><label>Echo Time</label><input type="range" min="0" max="1" step="0.01" value="0.3" id="delayTime-${this.id}" /><span id="delayTimeVal-${this.id}">0.3</span></div>
-                <div class="control-group"><label>Echo Fdbk</label><input type="range" min="0" max="0.95" step="0.01" value="0.4" id="delayFeedback-${this.id}" /><span id="delayFeedbackVal-${this.id}">0.4</span></div>
-                <div class="control-group"><label>Echo Mix</label><input type="range" min="0" max="1" step="0.01" value="0" id="delayMix-${this.id}" /><span id="delayMixVal-${this.id}">0</span></div>
-                <div class="control-group"><label>Flanger Spd</label><input type="range" min="0.1" max="10" step="0.1" value="1" id="flangerSpeed-${this.id}" /><span id="flangerSpeedVal-${this.id}">1</span></div>
-                <div class="control-group"><label>Tremolo Freq</label><input type="range" min="0.1" max="20" step="0.1" value="5" id="tremoloFreq-${this.id}" /><span id="tremoloFreqVal-${this.id}">5</span></div>
-                <div class="control-group"><label>Tremolo Depth</label><input type="range" min="0" max="1" step="0.01" value="0" id="tremoloDepth-${this.id}" /><span id="tremoloDepthVal-${this.id}">0</span></div>
-            </div>
-            <div class="my-4 flex gap-2"><button id="playBtn-${this.id}">▶ Play</button><button id="stopBtn-${this.id}" disabled>■ Stop</button><button id="cueBtn-${this.id}">CUE</button></div>
-            <div id="sequencer-${this.id}" class="sequencer-grid"></div>
-            <div class="drum-label-container mt-4" style="color:#96f;"><span id="melody-label-${this.id}">Synth Melody</span><input type="checkbox" id="synthChorusToggle-${this.id}" /><label for="synthChorusToggle-${this.id}">Chorus</label></div>
-            <div id="synthseq-${this.id}" class="sequencer-grid"></div>
-            <div id="pattern-manager-${this.id}" class="mt-4 flex flex-wrap gap-2 items-center">
-                <input type="text" id="snippetName-${this.id}" placeholder="Pattern Name" class="flex-grow" /><input type="text" id="snippetCat-${this.id}" placeholder="Category" class="flex-grow" /><button id="saveBtn-${this.id}">Save</button>
-                <select id="catFilter-${this.id}"></select><select id="savedSnippets-${this.id}"></select><button id="loadBtn-${this.id}">Load</button>
-            </div>
-        `;
-        this.buildSequencerGrid();
-        this.buildSynthGrid();
-    }
+  // Background Tone Sliders
+  const bgToneFreqSlider = document.getElementById('bgToneFreq');
+  const bgToneToggleBtn = document.getElementById('bgToneToggleBtn');
+  const bgToneFreqVal = document.getElementById('bgToneFreqVal');
 
-    initAudio() {
-        this.mainInputNode = this.ctx.createGain();
-        this.distortionNode = this.ctx.createWaveShaper();
-        this.reverbNode = this.ctx.createConvolver();
-        this.reverbWetGain = this.ctx.createGain();
-        this.reverbDryGain = this.ctx.createGain();
-        this.lpfNode = this.ctx.createBiquadFilter();
-        this.lpfNode.type = 'lowpass';
-        this.hpfNode = this.ctx.createBiquadFilter();
-        this.hpfNode.type = 'highpass';
-        this.lowEQ = this.ctx.createBiquadFilter();
-        this.lowEQ.type = 'lowshelf';
-        this.lowEQ.frequency.value = 250;
-        this.midEQ = this.ctx.createBiquadFilter();
-        this.midEQ.type = 'peaking';
-        this.midEQ.frequency.value = 1000;
-        this.highEQ = this.ctx.createBiquadFilter();
-        this.highEQ.type = 'highshelf';
-        this.highEQ.frequency.value = 4000;
-        
-        this.reverbNode.buffer = this.createReverbImpulseResponse();
-        
-        this.mainInputNode.connect(this.distortionNode);
-        this.distortionNode.connect(this.lowEQ);
-        this.lowEQ.connect(this.midEQ);
-        this.midEQ.connect(this.highEQ);
-        this.highEQ.connect(this.hpfNode);
-        this.hpfNode.connect(this.lpfNode);
-        this.lpfNode.connect(this.reverbDryGain);
-        this.lpfNode.connect(this.reverbNode);
-        this.reverbNode.connect(this.reverbWetGain);
-        this.reverbDryGain.connect(this.masterGain);
-        this.reverbWetGain.connect(this.masterGain);
-        
-        this.setFiltersFromUI();
-    }
+  // Pattern Manager
+  const snippetNameInput = document.getElementById('snippetName');
+  const snippetCatInput = document.getElementById('snippetCat');
+  const saveBtn = document.getElementById('saveBtn');
+  const catFilter = document.getElementById('catFilter');
+  const savedSnippets = document.getElementById('savedSnippets');
+  const loadBtn = document.getElementById('loadBtn');
 
-    buildSequencerGrid() {
-        const seqDiv = this.container.querySelector(`#sequencer-${this.id}`);
-        seqDiv.innerHTML = '';
-        drumNames.forEach((name, dIdx) => {
-            const labelContainer = document.createElement('div');
-            labelContainer.className = "drum-label-container";
-            labelContainer.innerHTML = `<span>${name}</span><input type="checkbox" id="drumChorus_${dIdx}-${this.id}" title="Enable chorus for ${name}" /><label for="drumChorus_${dIdx}-${this.id}">Chorus</label>`;
-            seqDiv.appendChild(labelContainer);
-            for (let s = 0; s < stepsCount; s++) {
-                const stepEl = document.createElement('button');
-                stepEl.className = 'step';
-                stepEl.dataset.drum = dIdx;
-                stepEl.dataset.step = s;
-                if (this.pattern[dIdx].steps[s]) stepEl.classList.add('active');
-                stepEl.onclick = () => {
-                    this.pattern[dIdx].steps[s] = !this.pattern[dIdx].steps[s];
-                    stepEl.classList.toggle('active');
-                };
-                seqDiv.appendChild(stepEl);
-            }
-        });
-    }
+  // Message Box
+  const messageBox = document.getElementById('messageBox');
+  const messageBoxText = document.getElementById('messageBoxText');
+  const messageBoxCloseBtn = document.getElementById('messageBoxCloseBtn');
 
-    buildSynthGrid() {
-        const synthSeqDiv = this.container.querySelector(`#synthseq-${this.id}`);
-        synthSeqDiv.innerHTML = '';
-        for (let s = 0; s < stepsCount; s++) {
-            const cell = document.createElement('button');
-            cell.className = 'melstep';
-            if (this.synthSeqPattern[s] !== null) cell.classList.add('active');
-            cell.innerHTML = this.synthSeqPattern[s] === null ? '' : noteNames[this.synthSeqPattern[s]];
-            cell.onclick = () => {
-                if (this.synthSeqPattern[s] === null) this.synthSeqPattern[s] = 0;
-                else if (this.synthSeqPattern[s] < scale.length - 1) this.synthSeqPattern[s]++;
-                else this.synthSeqPattern[s] = null;
-                cell.innerHTML = this.synthSeqPattern[s] === null ? '' : noteNames[this.synthSeqPattern[s]];
-                cell.classList.toggle('active', this.synthSeqPattern[s] !== null);
-            };
-            synthSeqDiv.appendChild(cell);
-        }
-    }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-    setFiltersFromUI() {
-        this.lpfNode.frequency.value = +this.container.querySelector(`#lpfCutoff-${this.id}`).value;
-        this.hpfNode.frequency.value = +this.container.querySelector(`#hpfCutoff-${this.id}`).value;
-        this.lowEQ.gain.value = +this.container.querySelector(`#lowGain-${this.id}`).value;
-        this.midEQ.gain.value = +this.container.querySelector(`#midGain-${this.id}`).value;
-        this.highEQ.gain.value = +this.container.querySelector(`#highGain-${this.id}`).value;
-        this.distortionNode.curve = this.makeDistortionCurve(+this.container.querySelector(`#distortionAmount-${this.id}`).value);
-        const reverbMix = +this.container.querySelector(`#reverbMix-${this.id}`).value;
-        this.reverbDryGain.gain.value = 1 - reverbMix;
-        this.reverbWetGain.gain.value = reverbMix;
-    }
-    
-    makeDistortionCurve(amount) {
-        const k = typeof amount === 'number' ? amount : 50, n_samples = 44100, curve = new Float32Array(n_samples), deg = Math.PI / 180;
-        for (let i = 0; i < n_samples; ++i) {
-            const x = i * 2 / n_samples - 1;
-            curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
-        }
-        return curve;
-    }
+  // Custom Message Box instead of alert()
+  function showMessageBox(message) {
+    messageBoxText.textContent = message;
+    messageBox.style.display = 'block';
+  }
+  messageBoxCloseBtn.onclick = () => {
+    messageBox.style.display = 'none';
+  };
 
-    createReverbImpulseResponse(duration = 2, decay = 2) {
-        const sampleRate = this.ctx.sampleRate;
-        const length = sampleRate * duration;
-        const impulse = this.ctx.createBuffer(2, length, sampleRate);
-        const impulseL = impulse.getChannelData(0);
-        const impulseR = impulse.getChannelData(1);
-        for (let i = 0; i < length; i++) {
-            impulseL[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
-            impulseR[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
-        }
-        return impulse;
-    }
-    
-    playStep(step) {
-        drumNames.forEach((name, dIdx) => {
-            if (this.pattern[dIdx].steps[step]) {
-                let sourceNode;
-                if (dIdx === 0) { // Kick
-                    const osc = this.ctx.createOscillator();
-                    osc.frequency.setValueAtTime(120, this.ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(42, this.ctx.currentTime + 0.1);
-                    const gain = this.ctx.createGain();
-                    gain.gain.setValueAtTime(1, this.ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
-                    osc.connect(gain);
-                    osc.start();
-                    osc.stop(this.ctx.currentTime + 0.15);
-                    sourceNode = gain;
-                }
-                // Add other drum sounds here...
-                if(sourceNode) sourceNode.connect(this.mainInputNode);
-            }
-        });
-         if (this.synthSeqPattern[step] !== null) {
-            const freq = 440 * Math.pow(2, (scale[this.synthSeqPattern[step]] - 69) / 12);
-            const osc = this.ctx.createOscillator();
-            osc.frequency.value = freq;
-            const gain = this.ctx.createGain();
-            gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
-            osc.connect(gain);
-            gain.connect(this.mainInputNode);
-            osc.start();
-            osc.stop(this.ctx.currentTime + 0.2);
-        }
-    }
+  // --- DRUM GRID ---
+  function buildSequencerGrid() {
+    seqDiv.innerHTML = '';
+    drumNames.forEach((name, dIdx) => {
+      const labelContainer = document.createElement('div');
+      labelContainer.className = "drum-label-container"; // Use new class for container
+      labelContainer.style.gridColumn = `span ${stepsCount}`; // Ensure it spans grid
 
-    sequencerLoop() {
-        if (!this.isPlaying) return;
-        this.playStep(this.currentStep);
-        this.currentStep = (this.currentStep + 1) % stepsCount;
-        this.timerId = setTimeout(() => this.sequencerLoop(), (60 / this.tempo) / 4 * 1000);
-    }
-    
-    setupEventListeners() {
-        this.container.querySelector(`#playBtn-${this.id}`).onclick = () => {
-            if (this.ctx.state === 'suspended') this.ctx.resume();
-            this.isPlaying = true;
-            this.container.querySelector(`#playBtn-${this.id}`).disabled = true;
-            this.container.querySelector(`#stopBtn-${this.id}`).disabled = false;
-            this.sequencerLoop();
+      const labelText = document.createElement('span');
+      labelText.textContent = name;
+      labelContainer.appendChild(labelText);
+
+      const chorusToggle = document.createElement('input');
+      chorusToggle.type = 'checkbox';
+      chorusToggle.id = `drumChorus_${dIdx}`;
+      chorusToggle.checked = pattern[dIdx].chorusEnabled;
+      chorusToggle.title = `Enable chorus for ${name}`;
+      chorusToggle.onchange = (e) => {
+          pattern[dIdx].chorusEnabled = e.target.checked;
+      };
+      labelContainer.appendChild(chorusToggle);
+
+      const chorusLabel = document.createElement('label');
+      chorusLabel.htmlFor = `drumChorus_${dIdx}`;
+      chorusLabel.textContent = 'Chorus';
+      labelContainer.appendChild(chorusLabel);
+
+      seqDiv.appendChild(labelContainer);
+
+      for (let s = 0; s < stepsCount; s++) {
+        const stepEl = document.createElement('button');
+        stepEl.className = 'step';
+        stepEl.setAttribute('aria-pressed', 'false');
+        stepEl.setAttribute('data-drum', dIdx);
+        stepEl.setAttribute('data-step', s);
+        stepEl.setAttribute('title', `${name} step ${s + 1}`);
+        if (pattern[dIdx].steps[s]) stepEl.classList.add('active'); // Access steps property
+        stepEl.onclick = () => {
+          pattern[dIdx].steps[s] = !pattern[dIdx].steps[s]; // Access steps property
+          stepEl.classList.toggle('active');
+          stepEl.setAttribute('aria-pressed', pattern[dIdx].steps[s]);
         };
-        this.container.querySelector(`#stopBtn-${this.id}`).onclick = () => {
-            this.isPlaying = false;
-            this.container.querySelector(`#playBtn-${this.id}`).disabled = false;
-            this.container.querySelector(`#stopBtn-${this.id}`).disabled = true;
-            clearTimeout(this.timerId);
+        seqDiv.appendChild(stepEl);
+      }
+    });
+  }
+  function highlightStep(stepIdx) {
+    const stepBtns = seqDiv.querySelectorAll('.step');
+    for (let i = 0; i < drumNames.length; i++)
+      for (let j = 0; j < stepsCount; j++) {
+        const idx = i * stepsCount + j;
+        stepBtns[idx]?.classList.toggle('playing', j === stepIdx);
+      }
+  }
+
+  // --- SYNTH GRID ---
+  function buildSynthGrid() {
+    synthSeqDiv.innerHTML = '';
+    // Re-attach the synth chorus toggle in case of rebuild
+    const synthChorusToggle = document.getElementById('synthChorusToggle');
+    if (synthChorusToggle) {
+        synthChorusToggle.checked = synthChorusEnabled;
+        synthChorusToggle.onchange = (e) => {
+            synthChorusEnabled = e.target.checked;
         };
-        this.container.querySelector(`#cueBtn-${this.id}`).onclick = () => {
-            this.currentStep = 0;
-            // Add visual feedback if desired
-        };
-        this.container.querySelectorAll('input[type=range]').forEach(slider => {
-            slider.oninput = (e) => {
-                const span = this.container.querySelector(`#${e.target.id.replace('-'+this.id, '')}Val-${this.id}`);
-                if(span) span.textContent = e.target.value;
-                this.setFiltersFromUI();
-            };
-        });
-        this.container.querySelector(`#saveBtn-${this.id}`).onclick = () => this.saveCurrentPattern();
-        this.container.querySelector(`#loadBtn-${this.id}`).onclick = () => this.loadSelectedPattern();
-        this.container.querySelector(`#catFilter-${this.id}`).onchange = () => this.updatePatternList();
     }
-    
-    loadSnippetsFromLS() { return JSON.parse(localStorage.getItem(`djControllerPatterns-${this.id}`) || '{}'); }
-    saveSnippetsToLS(obj) { localStorage.setItem(`djControllerPatterns-${this.id}`, JSON.stringify(obj)); }
-    updateCategoryList() {
-        const data = this.loadSnippetsFromLS();
-        const catFilter = this.container.querySelector(`#catFilter-${this.id}`);
-        const categories = Object.keys(data).sort();
-        catFilter.innerHTML = '';
-        categories.forEach(cat => {
-            const opt = document.createElement('option');
-            opt.value = cat;
-            opt.textContent = cat;
-            catFilter.appendChild(opt);
-        });
-        if (categories.length) {
-            catFilter.value = categories[0];
-            this.updatePatternList();
-        }
+
+    for (let s = 0; s < stepsCount; s++) {
+      const cell = document.createElement('button');
+      cell.className = 'melstep';
+      if (synthSeqPattern[s] !== null) cell.classList.add('active');
+      cell.innerHTML = synthSeqPattern[s] === null ? '' : noteNames[synthSeqPattern[s]];
+      cell.title = 'Click to set melody (C D E F G A B C); more clicks=advance/rest'; // Reverted title
+      cell.onclick = () => {
+        // Reverted logic: cycle null -> 0 -> 1 -> ... -> max -> null
+        if (synthSeqPattern[s] === null)
+          synthSeqPattern[s] = 0;
+        else if (synthSeqPattern[s] < scale.length-1)
+          synthSeqPattern[s]++;
+        else
+          synthSeqPattern[s] = null;
+        cell.innerHTML = synthSeqPattern[s] === null ? '' : noteNames[synthSeqPattern[s]];
+        cell.classList.toggle('active', synthSeqPattern[s] !== null);
+      }
+      synthSeqDiv.appendChild(cell);
     }
-    updatePatternList() {
-        const data = this.loadSnippetsFromLS();
-        const catFilter = this.container.querySelector(`#catFilter-${this.id}`);
-        const savedSnippets = this.container.querySelector(`#savedSnippets-${this.id}`);
-        const cat = catFilter.value;
-        savedSnippets.innerHTML = '';
-        if (data[cat]) {
-            data[cat].forEach((patternObj, idx) => {
-                const opt = document.createElement('option');
-                opt.value = idx;
-                opt.textContent = patternObj.name || `Pattern ${idx + 1}`;
-                savedSnippets.appendChild(opt);
-            });
-        }
+  }
+  function highlightSynthStep(stepIdx) {
+    const cells = synthSeqDiv.querySelectorAll('.melstep');
+    for (let j = 0; j < stepsCount; j++)
+      cells[j]?.classList.toggle('playing', j === stepIdx);
+  }
+
+  // --- AUDIO NODE CHAIN SETUP ---
+  // Main input node for all sounds (drums, synth)
+  const mainInputNode = ctx.createGain();
+
+  // 1. Distortion
+  const distortionNode = ctx.createWaveShaper();
+  const distortionGain = ctx.createGain(); // Gain after distortion to control volume
+  distortionNode.connect(distortionGain);
+  function makeDistortionCurve(amount) {
+    const k = typeof amount === 'number' ? amount : 50;
+    const n_samples = 44100;
+    const curve = new Float32Array(n_samples);
+    const deg = Math.PI / 180;
+    for (let i = 0; i < n_samples; ++i) {
+      const x = i * 2 / n_samples - 1;
+      curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
     }
-    saveCurrentPattern() {
-        const name = this.container.querySelector(`#snippetName-${this.id}`).value.trim() || `Pattern ${Date.now()}`;
-        const cat = this.container.querySelector(`#snippetCat-${this.id}`).value.trim() || 'Default';
-        let data = this.loadSnippetsFromLS();
-        if (!data[cat]) data[cat] = [];
-        const settings = {};
-        this.allSliders.forEach(sliderId => {
-            const slider = this.container.querySelector(`#${sliderId}-${this.id}`);
-            if(slider) settings[sliderId] = slider.value;
-        });
-        const patternData = { name, pattern: this.pattern, melody: this.synthSeqPattern, settings };
-        data[cat].push(patternData);
-        this.saveSnippetsToLS(data);
-        this.updateCategoryList();
-        showMessageBox(`Pattern "${name}" saved to Deck ${this.id}.`);
-    }
-    loadSelectedPattern() {
-        const cat = this.container.querySelector(`#catFilter-${this.id}`).value;
-        const idx = this.container.querySelector(`#savedSnippets-${this.id}`).value;
-        const data = this.loadSnippetsFromLS();
-        if (!data[cat] || !data[cat][idx]) return;
-        const loaded = data[cat][idx];
-        this.pattern = loaded.pattern;
-        this.synthSeqPattern = loaded.melody;
-        this.buildSequencerGrid();
-        this.buildSynthGrid();
-        if (loaded.settings) {
-            this.allSliders.forEach(sliderId => {
-                const slider = this.container.querySelector(`#${sliderId}-${this.id}`);
-                if (slider && loaded.settings[sliderId] !== undefined) {
-                    slider.value = loaded.settings[sliderId];
-                    slider.dispatchEvent(new Event('input'));
-                }
-            });
-        }
-        showMessageBox(`Pattern "${loaded.name}" loaded on Deck ${this.id}.`);
-    }
-}
+    return curve;
+  }
+  distortionGain.connect(mainInputNode); // Connect distortion output to main input
 
-// --- Main Application Setup ---
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // 2. Flanger
+  const flangerLFO = ctx.createOscillator();
+  flangerLFO.type = 'sine';
+  flangerLFO.frequency.setValueAtTime(1, ctx.currentTime); // Default speed
+  flangerLFO.start(0);
 
-// Deck Outputs
-const gainA = audioCtx.createGain();
-const gainB = audioCtx.createGain();
+  const flangerLFOGain = ctx.createGain(); // Controls depth of flanger
+  flangerLFO.connect(flangerLFOGain);
 
-// Master Bus
-const masterBus = audioCtx.createGain();
-gainA.connect(masterBus);
-gainB.connect(masterBus);
+  const flangerDelay = ctx.createDelay(0.01); // Max delay for flanger (10ms)
+  flangerLFOGain.connect(flangerDelay.delayTime); // LFO modulates delay time
 
-// Master Effects
-const masterLpf = audioCtx.createBiquadFilter();
-masterLpf.type = 'lowpass';
-masterLpf.frequency.value = 20000;
-const masterHpf = audioCtx.createBiquadFilter();
-masterHpf.type = 'highpass';
-masterHpf.frequency.value = 20;
-const masterEq = audioCtx.createBiquadFilter();
-masterEq.type = 'peaking';
-masterEq.gain.value = 0;
-const masterReverb = audioCtx.createConvolver();
-const masterReverbWet = audioCtx.createGain();
-masterReverbWet.gain.value = 0;
-const masterReverbDry = audioCtx.createGain();
-masterReverbDry.gain.value = 1;
+  const flangerFeedbackGain = ctx.createGain(); // Feedback for flanger
+  flangerDelay.connect(flangerFeedbackGain);
+  flangerFeedbackGain.connect(flangerDelay); // Feedback loop
 
-// Master Chain
-masterBus.connect(masterHpf);
-masterHpf.connect(masterEq);
-masterEq.connect(masterLpf);
-masterLpf.connect(masterReverbDry);
-masterLpf.connect(masterReverb);
-masterReverb.connect(masterReverbWet);
+  const flangerWetGain = ctx.createGain(); // Wet signal path
+  flangerDelay.connect(flangerWetGain);
 
-// Master Recorder Setup
-const masterRecorderDestination = audioCtx.createMediaStreamDestination();
-masterReverbDry.connect(masterRecorderDestination);
-masterReverbWet.connect(masterRecorderDestination);
-masterReverbDry.connect(audioCtx.destination);
-masterReverbWet.connect(audioCtx.destination);
+  const flangerDryGain = ctx.createGain(); // Dry signal path
 
+  // Connect mainInputNode (which receives all sounds) to flanger dry and wet paths
+  mainInputNode.connect(flangerDryGain);
+  mainInputNode.connect(flangerDelay); // Signal for flanger effect
 
-// Create reverb impulse
-const sampleRate = audioCtx.sampleRate;
-const length = sampleRate * 2;
-const impulse = audioCtx.createBuffer(2, length, sampleRate);
-const impulseL = impulse.getChannelData(0);
-const impulseR = impulse.getChannelData(1);
-for (let i = 0; i < length; i++) {
-    impulseL[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2);
-    impulseR[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2);
-}
-masterReverb.buffer = impulse;
+  // Sum dry and wet flanger signals
+  const flangerOutput = ctx.createGain();
+  flangerDryGain.connect(flangerOutput);
+  flangerWetGain.connect(flangerOutput);
 
-// Instantiate Decks
-const deckA = new Deck('A', audioCtx, gainA);
-const deckB = new Deck('B', audioCtx, gainB);
+  // 3. Tremolo
+  const tremoloLFO = ctx.createOscillator();
+  tremoloLFO.type = 'sine';
+  tremoloLFO.frequency.setValueAtTime(5, ctx.currentTime); // Default speed
+  tremoloLFO.start(0);
 
-// --- Mixer and Master FX Event Listeners ---
-const crossfader = document.getElementById('crossfader');
-crossfader.addEventListener('input', (e) => {
-    const value = parseFloat(e.target.value);
-    const gainAValue = Math.cos((value + 1) * 0.25 * Math.PI);
-    const gainBValue = Math.cos((1 - value) * 0.25 * Math.PI);
-    gainA.gain.setValueAtTime(gainAValue, audioCtx.currentTime);
-    gainB.gain.setValueAtTime(gainBValue, audioCtx.currentTime);
-});
-crossfader.dispatchEvent(new Event('input')); // Set initial position
+  const tremoloDepthGain = ctx.createGain(); // Controls depth of tremolo
+  tremoloLFO.connect(tremoloDepthGain);
 
-document.getElementById('master-lpf').addEventListener('input', e => masterLpf.frequency.value = e.target.value);
-document.getElementById('master-hpf').addEventListener('input', e => masterHpf.frequency.value = e.target.value);
-document.getElementById('master-eqgain').addEventListener('input', e => masterEq.gain.value = e.target.value);
-document.getElementById('master-reverb').addEventListener('input', e => {
-    const mix = parseFloat(e.target.value);
-    masterReverbDry.gain.value = 1 - mix;
-    masterReverbWet.gain.value = mix;
-});
+  const tremoloNode = ctx.createGain(); // This gain node's gain will be modulated
+  tremoloDepthGain.connect(tremoloNode.gain); // LFO modulates tremoloNode's gain
 
-// --- Mobile Deck Toggle ---
-const deckToggleBtn = document.getElementById('deck-toggle');
-const deckAContainer = document.getElementById('deck-A');
-const deckBContainer = document.getElementById('deck-B');
-deckToggleBtn.addEventListener('click', () => {
-    const isBVisible = !deckBContainer.classList.contains('hidden');
-    if (isBVisible) {
-        deckBContainer.classList.add('hidden');
-        deckAContainer.classList.remove('hidden');
-        deckToggleBtn.textContent = 'Show Deck B';
+  flangerOutput.connect(tremoloNode); // Connect flanger output to tremolo
+
+  // 4. Echo (Delay)
+  const delayNode = ctx.createDelay(1.0); // Max delay of 1 second
+  const echoFeedbackGain = ctx.createGain();
+  const echoDryGain = ctx.createGain(); // For original signal
+  const echoWetGain = ctx.createGain(); // For delayed signal
+
+  // Connect echo feedback loop: delay -> feedbackGain -> delay
+  delayNode.connect(echoFeedbackGain);
+  echoFeedbackGain.connect(delayNode);
+  delayNode.connect(echoWetGain); // Connect delayed signal to wet gain
+
+  // Connect tremolo output to echo dry and wet paths
+  tremoloNode.connect(echoDryGain); // Original signal path
+  tremoloNode.connect(delayNode); // Signal for delay effect
+
+  // Sum dry and wet echo signals
+  const echoOutput = ctx.createGain();
+  echoDryGain.connect(echoOutput);
+  echoWetGain.connect(echoOutput);
+
+  // 5. Filters (HPF, EQ, LPF) - these remain the same, but connect after effects
+  const hpfNode = ctx.createBiquadFilter(); hpfNode.type = 'highpass';
+  const eqNode = ctx.createBiquadFilter(); eqNode.type = 'peaking';
+  const lpfNode = ctx.createBiquadFilter(); lpfNode.type = 'lowpass';
+
+  echoOutput.connect(hpfNode); // Connect echo output to HPF
+  hpfNode.connect(eqNode);
+  eqNode.connect(lpfNode);
+  lpfNode.connect(ctx.destination); // Final output to speakers
+
+  // Background Tone
+  let bgToneOsc = null;
+  const bgToneGain = ctx.createGain();
+  bgToneGain.gain.value = 0.1; // Default volume for background tone
+  bgToneGain.connect(distortionNode); // Connect background tone to the start of the effects chain
+
+  function startBackgroundTone() {
+    if (ctx.state === 'suspended') ctx.resume();
+    if (bgToneOsc) return; // Already playing
+    bgToneOsc = ctx.createOscillator();
+    bgToneOsc.type = 'sine';
+    bgToneOsc.frequency.value = +bgToneFreqSlider.value;
+    bgToneOsc.connect(bgToneGain);
+    bgToneOsc.start();
+    bgToneToggleBtn.textContent = 'Tone Off';
+  }
+
+  function stopBackgroundTone() {
+    if (!bgToneOsc) return;
+    bgToneOsc.stop();
+    bgToneOsc.disconnect();
+    bgToneOsc = null;
+    bgToneToggleBtn.textContent = 'Tone On';
+  }
+
+  bgToneToggleBtn.onclick = () => {
+    if (bgToneOsc) {
+      stopBackgroundTone();
     } else {
-        deckAContainer.classList.add('hidden');
-        deckBContainer.classList.remove('hidden');
-        deckToggleBtn.textContent = 'Show Deck A';
+      startBackgroundTone();
     }
-});
+  };
 
-// --- Master Recorder ---
-let masterRecorder;
-let isMasterRecording = false;
-let audioChunks = [];
-const masterRecordBtn = document.getElementById('master-record');
+  // Function to create a chorus effect chain for individual instruments
+  function createChorusEffect(delayTimeMs = 5, depth = 0.5, feedback = 0.5, speed = 1) {
+      const chorusLFO = ctx.createOscillator();
+      chorusLFO.type = 'sine';
+      chorusLFO.frequency.setValueAtTime(speed, ctx.currentTime);
+      chorusLFO.start(0);
 
-masterRecordBtn.addEventListener('click', () => {
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+      const chorusLFOGain = ctx.createGain();
+      chorusLFO.connect(chorusLFOGain);
+
+      const chorusDelay = ctx.createDelay(0.01); // Max delay for chorus (10ms)
+      chorusLFOGain.connect(chorusDelay.delayTime); // LFO modulates delay time
+
+      const chorusFeedbackGain = ctx.createGain();
+      chorusDelay.connect(chorusFeedbackGain);
+      chorusFeedbackGain.connect(chorusDelay);
+
+      const chorusWetGain = ctx.createGain();
+      chorusDelay.connect(chorusWetGain);
+
+      const chorusDryGain = ctx.createGain();
+
+      const chorusOutput = ctx.createGain();
+      chorusDryGain.connect(chorusOutput);
+      chorusWetGain.connect(chorusOutput);
+
+      // Set initial values
+      chorusDelay.delayTime.value = delayTimeMs / 1000;
+      chorusFeedbackGain.gain.value = feedback;
+      chorusLFOGain.gain.value = depth * (chorusDelay.delayTime.value / 2); // Depth based on delay time
+
+      // Return input and output nodes of this effect chain
+      return {
+          input: chorusDryGain, // Input to the dry path
+          output: chorusOutput, // Output of the mixed dry/wet signal
+          lfo: chorusLFO, // Keep reference to LFO to stop it later if needed
+          nodes: [chorusLFO, chorusLFOGain, chorusDelay, chorusFeedbackGain, chorusWetGain, chorusDryGain, chorusOutput] // For cleanup
+      };
+  }
+
+  // Function to set all filter and effect parameters from UI
+  function setFiltersFromUI() {
+    // Filters
+    hpfNode.frequency.value = +hpfSlider.value;
+    lpfNode.frequency.value = +lpfSlider.value;
+    eqNode.frequency.value = +eqFreqSlider.value;
+    eqNode.gain.value = +eqGainSlider.value;
+
+    // Distortion
+    const distortionAmount = +distortionSlider.value;
+    distortionNode.curve = makeDistortionCurve(distortionAmount);
+    distortionGain.gain.value = distortionAmount > 0 ? 0.7 : 1; // Reduce gain if distortion is active
+
+    // Echo (Delay)
+    delayNode.delayTime.value = +delayTimeSlider.value;
+    echoFeedbackGain.gain.value = +delayFeedbackSlider.value;
+    const delayMix = +delayMixSlider.value;
+    echoDryGain.gain.value = 1 - delayMix; // Inverse for dry signal
+    echoWetGain.gain.value = delayMix;     // For wet signal
+
+    // Flanger
+    flangerDelay.delayTime.value = (+flangerDelaySlider.value / 1000); // Convert ms to seconds
+    flangerFeedbackGain.gain.value = +flangerFeedbackSlider.value;
+    flangerLFO.frequency.value = +flangerSpeedSlider.value;
+    flangerLFOGain.gain.value = +flangerDepthSlider.value * (flangerDelay.delayTime.value / 2); // Depth based on delay time
+
+    // Tremolo
+    tremoloLFO.frequency.value = +tremoloFreqSlider.value;
+    tremoloDepthGain.gain.value = +tremoloDepthSlider.value;
+
+    // Background Tone
+    if (bgToneOsc) {
+      bgToneOsc.frequency.value = +bgToneFreqSlider.value;
     }
-    isMasterRecording = !isMasterRecording;
-    if (isMasterRecording) {
-        startMasterRecording();
-    } else {
-        stopMasterRecording();
-    }
-});
+  }
 
-function startMasterRecording() {
-    audioChunks = [];
-    masterRecorder = new MediaRecorder(masterRecorderDestination.stream);
-    masterRecorder.ondataavailable = event => audioChunks.push(event.data);
-    masterRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        const url = URL.createObjectURL(audioBlob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = 'dj-mix.wav';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        showMessageBox('Recording saved to your downloads!');
+  // Update UI values and apply settings on slider input
+  const allSliders = [
+    'lpfCutoff','hpfCutoff','eqFreq','eqGain',
+    'distortionAmount',
+    'delayTime', 'delayFeedback', 'delayMix',
+    'flangerDelay', 'flangerDepth', 'flangerFeedback', 'flangerSpeed',
+    'tremoloFreq', 'tremoloDepth',
+    'bgToneFreq'
+  ];
+
+  allSliders.forEach(id => {
+    document.getElementById(id).oninput = e => {
+      setFiltersFromUI();
+      let targetSpan = document.getElementById(id + 'Val');
+      if (id === 'lpfCutoff') targetSpan = document.getElementById('lpfVal');
+      if (id === 'hpfCutoff') targetSpan = document.getElementById('hpfVal');
+      if (id === 'eqFreq') targetSpan = document.getElementById('eqFreqVal');
+      if (id === 'eqGain') targetSpan = document.getElementById('eqGainVal');
+      if (id === 'distortionAmount') targetSpan = document.getElementById('distortionVal');
+      if (id === 'delayTime') targetSpan = document.getElementById('delayTimeVal');
+      if (id === 'delayFeedback') targetSpan = document.getElementById('delayFeedbackVal');
+      if (id === 'delayMix') targetSpan = document.getElementById('delayMixVal');
+      if (id === 'flangerDelay') targetSpan = document.getElementById('flangerDelayVal');
+      if (id === 'flangerDepth') targetSpan = document.getElementById('flangerDepthVal');
+      if (id === 'flangerFeedback') targetSpan = document.getElementById('flangerFeedbackVal');
+      if (id === 'flangerSpeed') targetSpan = document.getElementById('flangerSpeedVal');
+      if (id === 'tremoloFreq') targetSpan = document.getElementById('tremoloFreqVal');
+      if (id === 'tremoloDepth') targetSpan = document.getElementById('tremoloDepthVal');
+      if (id === 'bgToneFreq') targetSpan = document.getElementById('bgToneFreqVal');
+
+      if (targetSpan) targetSpan.textContent = e.target.value;
     };
-    masterRecorder.start();
-    masterRecordBtn.textContent = 'Stop Recording';
-    masterRecordBtn.classList.add('recording');
-}
+  });
+  setFiltersFromUI(); // Initial call to set all parameters
 
-function stopMasterRecording() {
-    masterRecorder.stop();
-    masterRecordBtn.textContent = 'Record Mix';
-    masterRecordBtn.classList.remove('recording');
-}
+  // --- DRUM SOUNDS ---
+  function playStep(step) {
+    // Drums
+    for (let d = 0; d < drumNames.length; d++) {
+      if (!pattern[d].steps[step]) continue; // Access steps property
 
+      let sourceNode; // This will be the output of the individual drum sound's processing
 
-function showMessageBox(message) {
-    document.getElementById('messageBoxText').textContent = message;
-    document.getElementById('messageBox').style.display = 'block';
-}
-document.getElementById('messageBoxCloseBtn').onclick = () => {
-    document.getElementById('messageBox').style.display = 'none';
-};
+      switch (d) {
+        case 0: { // Kick
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(120, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(42, ctx.currentTime + 0.1);
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(1, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+          osc.connect(gain);
+          osc.start(); osc.stop(ctx.currentTime + 0.15);
+          sourceNode = gain; // Output of kick
+        } break;
+        case 1: sourceNode = playNoise(0.15, 'lowpass', 1200); break; // Snare
+        case 2: sourceNode = playNoise(0.06, 'highpass', 7000); break; // HiHat
+        case 3: { // Clap - special case with multiple noises
+            const clapGain = ctx.createGain(); // Create a master gain for clap
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const noiseOut = playNoise(0.04, 'bandpass', 1500);
+                    noiseOut.connect(clapGain); // Connect each clap noise to master clap gain
+                }, i * 30);
+            }
+            sourceNode = clapGain; // Output of clap
+        } break;
+        case 4: { // Tom
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(220, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.18);
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0.6, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+          osc.connect(gain);
+          osc.start(); osc.stop(ctx.currentTime + 0.2);
+          sourceNode = gain; // Output of tom
+        } break;
+        case 5: sourceNode = playNoise(0.05, 'highpass', 4000); break; // Rimshot
+      }
 
+      // Apply individual chorus if enabled
+      if (sourceNode && pattern[d].chorusEnabled) {
+          const chorusEffect = createChorusEffect(); // Use default chorus values for now
+          sourceNode.connect(chorusEffect.input);
+          chorusEffect.output.connect(distortionNode); // Connect to the start of the global effects chain
+          // No explicit cleanup for chorus nodes needed here, as they will be garbage collected
+          // when their input/output connections are broken and they are no longer referenced.
+      } else if (sourceNode) {
+          sourceNode.connect(distortionNode); // Connect directly if no chorus
+      }
+    }
+
+    // Melody synth
+    if (synthSeqPattern[step] !== null) {
+      const synthOutputNode = playSynthNote(scale[synthSeqPattern[step]]);
+      if (synthOutputNode) {
+          if (synthChorusEnabled) {
+              const chorusEffect = createChorusEffect();
+              synthOutputNode.connect(chorusEffect.input);
+              chorusEffect.output.connect(distortionNode);
+          } else {
+              synthOutputNode.connect(distortionNode);
+          }
+      }
+    }
+  }
+  function playNoise(duration, filterType, filterFreq) {
+    const bufferSize = ctx.sampleRate * duration;
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = filterType; filter.frequency.setValueAtTime(filterFreq, ctx.currentTime);
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+    noise.connect(filter).connect(gainNode);
+    noise.start(); noise.stop(ctx.currentTime + duration);
+    return gainNode; // Return the output node
+  }
+  function playSynthNote(midi) {
+    let freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.21;
+    gain.gain.setTargetAtTime(0.10, ctx.currentTime, 0.12);
+    osc.connect(gain);
+    osc.start(); osc.stop(ctx.currentTime + 0.25);
+    return gain; // Return the output node
+  }
+
+  // --- SEQUENCER LOOP ---
+  let isPlaying = false, currentStep = 0, timerId = null, tempo = 125;
+  function sequencerLoop() {
+    if (!isPlaying) return;
+    playStep(currentStep);
+    highlightStep(currentStep);
+    highlightSynthStep(currentStep);
+    currentStep = (currentStep + 1) % stepsCount;
+    timerId = setTimeout(sequencerLoop, (60 / tempo) / 4 * 1000);
+  }
+  playBtn.onclick = () => {
+    if (ctx.state === 'suspended') ctx.resume();
+    isPlaying = true;
+    playBtn.disabled = true;
+    stopBtn.disabled = false;
+    currentStep = 0;
+    sequencerLoop();
+  };
+  stopBtn.onclick = () => {
+    isPlaying = false; playBtn.disabled = false; stopBtn.disabled = true;
+    clearTimeout(timerId);
+    highlightStep(-1);
+    highlightSynthStep(-1);
+  };
+
+  // --- Pattern save/load + filter settings
+  function loadSnippetsFromLS() {
+    return JSON.parse(localStorage.getItem('drumSynthPatternsMel') || '{}');
+  }
+  function saveSnippetsToLS(obj) {
+    localStorage.setItem('drumSynthPatternsMel', JSON.stringify(obj));
+  }
+  function updateCategoryList() {
+    const data = loadSnippetsFromLS();
+    const categories = Object.keys(data).sort();
+    catFilter.innerHTML = '';
+    categories.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      catFilter.appendChild(opt);
+    });
+    if (categories.length) {
+      catFilter.value = categories[0];
+      updatePatternList();
+    } else {
+      savedSnippets.innerHTML = '';
+    }
+  }
+  function updatePatternList() {
+    const data = loadSnippetsFromLS();
+    const cat = catFilter.value;
+    savedSnippets.innerHTML = '';
+    if (data[cat]) {
+      data[cat].forEach((patternObj, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = patternObj.name || `Pattern ${idx + 1}`;
+        savedSnippets.appendChild(opt);
+      });
+    }
+  }
+  saveBtn.onclick = () => {
+    // Default values for name and category if inputs are empty
+    const name = snippetNameInput.value.trim() || `Unnamed Pattern ${new Date().toLocaleString()}`;
+    const cat = snippetCatInput.value.trim() || 'Default'; // Default category if empty
+
+    let data = loadSnippetsFromLS();
+    if (!data[cat]) data[cat] = [];
+    data[cat].push({
+      name,
+      // Store pattern with chorusEnabled state for each drum track
+      pattern: pattern.map(track => ({
+          steps: track.steps.slice(),
+          chorusEnabled: track.chorusEnabled
+      })),
+      melody: synthSeqPattern.slice(),
+      settings: {
+        lpfCutoff: lpfSlider.value,
+        hpfCutoff: hpfSlider.value,
+        eqFreq: eqFreqSlider.value,
+        eqGain: eqGainSlider.value,
+        distortionAmount: distortionSlider.value,
+        delayTime: delayTimeSlider.value,
+        delayFeedback: delayFeedbackSlider.value,
+        delayMix: delayMixSlider.value,
+        flangerDelay: flangerDelaySlider.value,
+        flangerDepth: flangerDepthSlider.value,
+        flangerFeedback: flangerFeedbackSlider.value,
+        flangerSpeed: flangerSpeedSlider.value,
+        tremoloFreq: tremoloFreqSlider.value,
+        tremoloDepth: tremoloDepthSlider.value,
+        bgToneFreq: bgToneFreqSlider.value,
+        isBgTonePlaying: bgToneOsc !== null, // Save background tone state
+        synthChorusEnabled: synthChorusEnabled // Save synth chorus state
+      }
+    });
+    saveSnippetsToLS(data);
+    updateCategoryList();
+    snippetNameInput.value = '';
+    snippetCatInput.value = '';
+    showMessageBox(`Pattern "${name}" saved in category "${cat}".`);
+  };
+  loadBtn.onclick = () => {
+    const cat = catFilter.value;
+    const idx = savedSnippets.value;
+    if (!cat || !idx) return;
+    const data = loadSnippetsFromLS();
+    if (!data[cat] || !data[cat][idx]) return;
+    const loaded = data[cat][idx];
+
+    // Load pattern with chorusEnabled state
+    pattern = loaded.pattern.map(track => ({
+        steps: track.steps.slice(),
+        chorusEnabled: track.chorusEnabled ?? false // Default to false if not in old data
+    }));
+    synthSeqPattern = loaded.melody ? loaded.melody.slice() : Array(stepsCount).fill(null);
+    buildSequencerGrid(); // Rebuild UI to reflect drum chorus toggles
+    buildSynthGrid(); // Rebuild UI to reflect synth melody changes
+
+    // Load filter settings
+    lpfSlider.value = loaded.settings?.lpfCutoff ?? lpfSlider.value;
+    hpfSlider.value = loaded.settings?.hpfCutoff ?? hpfSlider.value;
+    eqFreqSlider.value = loaded.settings?.eqFreq ?? eqFreqSlider.value;
+    eqGainSlider.value = loaded.settings?.eqGain ?? eqGainSlider.value;
+
+    // Load effect settings
+    distortionSlider.value = loaded.settings?.distortionAmount ?? distortionSlider.value;
+    delayTimeSlider.value = loaded.settings?.delayTime ?? delayTimeSlider.value;
+    delayFeedbackSlider.value = loaded.settings?.delayFeedback ?? delayFeedbackSlider.value;
+    delayMixSlider.value = loaded.settings?.delayMix ?? delayMixSlider.value;
+    flangerDelaySlider.value = loaded.settings?.flangerDelay ?? flangerDelaySlider.value;
+    flangerDepthSlider.value = loaded.settings?.flangerDepth ?? flangerDepthSlider.value;
+    flangerFeedbackSlider.value = loaded.settings?.flangerFeedback ?? flangerFeedbackSlider.value;
+    flangerSpeedSlider.value = loaded.settings?.flangerSpeed ?? flangerSpeedSlider.value;
+    tremoloFreqSlider.value = loaded.settings?.tremoloFreq ?? tremoloFreqSlider.value;
+    tremoloDepthSlider.value = loaded.settings?.tremoloDepth ?? tremoloDepthSlider.value;
+
+    // Load background tone settings
+    bgToneFreqSlider.value = loaded.settings?.bgToneFreq ?? bgToneFreqSlider.value;
+    if (loaded.settings?.isBgTonePlaying) {
+      startBackgroundTone();
+    } else {
+      stopBackgroundTone();
+    }
+
+    // Load synth chorus state
+    synthChorusEnabled = loaded.settings?.synthChorusEnabled ?? false;
+    document.getElementById('synthChorusToggle').checked = synthChorusEnabled; // Update UI checkbox
+
+    // Update display values for all sliders
+    allSliders.forEach(id => {
+      let targetSpan = document.getElementById(id + 'Val');
+      if (id === 'lpfCutoff') targetSpan = document.getElementById('lpfVal');
+      if (id === 'hpfCutoff') targetSpan = document.getElementById('hpfVal');
+      if (id === 'eqFreq') targetSpan = document.getElementById('eqFreqVal');
+      if (id === 'eqGain') targetSpan = document.getElementById('eqGainVal');
+      if (id === 'distortionAmount') targetSpan = document.getElementById('distortionVal');
+      if (id === 'delayTime') targetSpan = document.getElementById('delayTimeVal');
+      if (id === 'delayFeedback') targetSpan = document.getElementById('delayFeedbackVal');
+      if (id === 'delayMix') targetSpan = document.getElementById('delayMixVal');
+      if (id === 'flangerDelay') targetSpan = document.getElementById('flangerDelayVal');
+      if (id === 'flangerDepth') targetSpan = document.getElementById('flangerDepthVal');
+      if (id === 'flangerFeedback') targetSpan = document.getElementById('flangerFeedbackVal');
+      if (id === 'flangerSpeed') targetSpan = document.getElementById('flangerSpeedVal');
+      if (id === 'tremoloFreq') targetSpan = document.getElementById('tremoloFreqVal');
+      if (id === 'tremoloDepth') targetSpan = document.getElementById('tremoloDepthVal');
+      if (id === 'bgToneFreq') targetSpan = document.getElementById('bgToneFreqVal');
+
+      if (targetSpan) targetSpan.textContent = document.getElementById(id).value;
+    });
+
+    setFiltersFromUI(); // Apply loaded settings to audio nodes
+  }
+  catFilter.onchange = updatePatternList;
+
+  // --- Initial build
+  buildSequencerGrid(); buildSynthGrid(); setFiltersFromUI(); updateCategoryList();
+})();
 </script>
 </body>
 </html>
